@@ -1,0 +1,11 @@
+/venv
+__pychache__/
+*.py[cod]
+*.log
+.env
+.idea/
+.vscode/
+alembic.ini
+
+.DS_Store
+Thumbs.db
