@@ -3,13 +3,21 @@ from aiogram import Dispatcher, F
 from datetime import datetime, time
 from aiogram.types import CallbackQuery, Message, InputMediaPhoto, InputMediaVideo
 from aiogram.fsm.context import FSMContext
-from app.database import get_all_posts, add_post, delete_post, get_post_by_id
+from app.database import(
+  get_all_posts, add_post, 
+  delete_post, get_post_by_id,update_post_time,
+  update_post_media, update_post_description, toggle_post_active
+  ) 
 from app.UI.inline import get_admin_keyboard, get_view_post_keyboard, get_skip_media_keyboard
-from app.utils.states import PostCreationState
-from app.handlers.callbacks.callback_data import (
-  BackToListCallback, CreatePostCallback, DeletePostCallback, SkipMediaCallback, ViewPostCallback
+from app.utils.states import PostCreationState, PostEditState
+from app.handlers.callbacks.callback_data import(
+  BackToListCallback, CreatePostCallback, DeletePostCallback, 
+  EditDescriptionCallback, EditMediaCallback, EditTimeCallback, 
+  SkipMediaCallback, ViewPostCallback, ToggleActiveCallback
 )
 
+
+#region #& Создание постов 
 #^ Начало создания поста 
 async def create_post_callback(callback: CallbackQuery, state: FSMContext):
   await state.set_state(PostCreationState.title)
@@ -134,7 +142,13 @@ async def view_post_handler(callback: CallbackQuery, callback_data: ViewPostCall
     f"<b>Текст поста:</b> <i><blockquote expandable>{post.content}</blockquote></i>"
   )
   
-  keyboard = get_view_post_keyboard(post_id)
+  keyboard = get_view_post_keyboard({
+        "id": post.id,
+        "title": post.title,
+        "is_active": post.is_active,
+        "schedule_time": post.schedule_time,
+        "content": post.content
+    })
   
   if post.media_content:
     media = InputMediaPhoto(media=post.media_content, caption=post_text, parse_mode="HTML")
@@ -149,7 +163,224 @@ async def view_post_handler(callback: CallbackQuery, callback_data: ViewPostCall
     )
   
   await callback.answer()
+#endregion
+
+
+
+#region #&Настройка постов
+#^ Изменение описания
+async def edit_description_handler(
+    callback: CallbackQuery, 
+    callback_data: EditDescriptionCallback, 
+    state: FSMContext
+):
+    post_id = callback_data.id
+    await state.set_state(PostEditState.edit_content)
+    await state.update_data(post_id=post_id)
+
+    try:
+        await callback.message.delete()
+
+        await callback.message.answer(
+            "<b>✒ Введите новое описание для поста:</b>",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        await callback.answer("Ошибка при обработке", show_alert=True)
+
+    await callback.answer()
+
+
+#^ Обработка нового описания
+async def update_description_handler(message: Message, state: FSMContext):
+  data = await state.get_data()
+  post_id = data.get("post_id")
+
+  await update_post_description(post_id, message.text)
+  await state.clear()
+
+  post = await get_post_by_id(post_id)
+  keyboard = get_view_post_keyboard(post_id)
+
+  post_text = (
+    f"<b>Время рассылки:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
+    f"<b>Название поста:</b> <u><b>{post.title}</b></u>\n"
+    f"<b>Текст поста:</b> <i><blockquote expandable>{post.content}</blockquote></i>"
+  )
+
+  if post.media_content:
+    if post.media_content.startswith("AgAC"):
+      await message.answer_photo(
+        photo=post.media_content,
+        caption=post_text,
+        reply_markup=keyboard,
+        parse_mode="HTML"
+      )
+    else:
+      await message.answer_video(
+        video=post.media_content,
+        caption=post_text,
+        reply_markup=keyboard,
+        parse_mode="HTML"
+      )
+  else:
+    await message.answer(
+      text=post_text,
+      reply_markup=keyboard,
+      parse_mode="HTML"
+    )
   
+
+#^ Изменение медиа
+async def edit_media_handler(
+    callback: CallbackQuery,
+    callback_data: EditMediaCallback,
+    state: FSMContext
+):
+    post_id = callback_data.id
+    await state.set_state(PostEditState.edit_media)
+    await state.update_data(post_id=post_id)
+
+    try:
+        await callback.message.delete()
+        await callback.message.answer(
+            text="<b>🖼️ Отправьте новое фото</b>",
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        await callback.answer("Ошибка при обновлении сообщения", show_alert=True)
+
+    await callback.answer()
+  
+  
+#^ Обработчик нового медиа
+async def update_media_handler(message: Message, state: FSMContext):
+  data = await state.get_data()
+  post_id = data.get("post_id")
+  media_file_id = None
+
+  if message.photo:
+    media_file_id = message.photo[-1].file_id
+  elif message.video:
+      media_file_id = message.video.file_id
+  else:
+    error_message = await message.answer(
+      "<b>💢 Пожалуйста, отправьте фото</b>", 
+      parse_mode="HTML")
+    await asyncio.sleep(3)
+    await error_message.delete()
+    return
+
+  await update_post_media(post_id, media_file_id)
+  await state.clear()
+
+  post = await get_post_by_id(post_id)
+  keyboard = get_view_post_keyboard(post_id)
+
+  post_text = (
+    f"<b>Время рассылки:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
+    f"<b>Название поста:</b> <u><b>{post.title}</b></u>\n"
+    f"<b>Текст поста:</b> <i><blockquote expandable>{post.content}</blockquote></i>"
+  )
+
+  await message.delete()
+
+  if post.media_content.startswith("AgAC"):  # Если это фото
+    await message.answer_photo(
+      photo=post.media_content,
+      caption=post_text,
+      reply_markup=keyboard,
+      parse_mode="HTML"
+    )
+  else:
+    await message.answer_video(
+      video=post.media_content,
+      caption=post_text,
+      reply_markup=keyboard,
+      parse_mode="HTML"
+    )
+
+
+#^ Изменение времени
+async def edit_time_handler(
+  callback: CallbackQuery, 
+  callback_data: EditTimeCallback,
+  state: FSMContext
+):
+  post_id = callback_data.id
+  await state.set_state(PostEditState.edit_time)
+  await state.update_data(post_id=post_id)
+  
+  try:
+    await callback.message.delete()
+    await callback.message.answer(
+      text="<b>🕜 Отправьте новое время</b>",
+      parse_mode="HTML"
+    )
+  except Exception as e:
+    await callback.answer("Ошибка при обновлении сообщения", show_alert=True)
+    
+  await callback.answer()
+
+
+#^ Обработка изменения времени
+async def update_time_handler(message: Message, state: FSMContext):
+  data = await state.get_data()
+  post_id = data.get("post_id")
+  
+  try:
+    try:
+      new_time = datetime.strptime(message.text, "%H:%M").time()
+    except ValueError:
+      error_message = await message.answer(
+        "<b>💢 Неверный формат времени. Укажите в формате ЧЧ:ММ</b>", 
+        parse_mode="HTML"
+      )
+      await asyncio.sleep(3)
+      await error_message.delete()
+      return
+    
+    await update_post_time(post_id, new_time)
+    await state.clear()
+    
+    post = await get_post_by_id(post_id)
+    keyboard = get_view_post_keyboard(post_id)
+    
+    post_text = (
+            f"<b>Время рассылки:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
+            f"<b>Название поста:</b> <u><b>{post.title}</b></u>\n"
+            f"<b>Текст поста:</b> <i><blockquote expandable>{post.content}</blockquote></i>"
+        )
+    
+    if post.media_content:
+      if post.media_content.startswith("AgAC"):
+        await message.answer_photo(
+          photo=post.media_content,
+          caption=post_text,
+          reply_markup=keyboard,
+          parse_mode="HTML"
+        )
+      else:
+        await message.answer_video(
+          video=post.media_content,
+          caption=post_text,
+          reply_markup=keyboard,
+          parse_mode="HTML"
+        )
+    else:
+      await message.answer(
+        text=post_text,
+        reply_markup=keyboard,
+        parse_mode="HTML"
+      )
+  except Exception as e:
+    error_message = await message.answer(
+      "<b>💢 Произошла ошибка при обновлении времени.</b>", 
+      parse_mode="HTML"
+    )
+    await asyncio.sleep(3)
+    await error_message.delete()
+
 
 #^ Назад к списку постов
 async def back_to_list_handler(callback: CallbackQuery, callback_data: BackToListCallback):
@@ -169,8 +400,33 @@ async def back_to_list_handler(callback: CallbackQuery, callback_data: BackToLis
       reply_markup=keyboard,
       parse_mode="HTML"
     )
+
+
+#^ Переключение состояния поста
+async def toggle_active_handler(
+  callback: CallbackQuery,
+  callback_data: ToggleActiveCallback
+):
+  post_id = callback_data.id
+  post = await get_post_by_id(post_id)
   
-  await callback.answer()
+  if not post:
+    await callback.answer("❗ Пост не найден", show_alert=True)
+    return
+  
+  new_status = not post.is_active
+  await toggle_post_active(post_id, new_status)
+  
+  updated_post = await get_post_by_id(post_id)
+  updated_keyboard = get_view_post_keyboard({
+    "id": updated_post.id,
+    "title": updated_post.title,
+    "is_active": updated_post.is_active
+  })
+  
+  await callback.message.edit_reply_markup(reply_markup=updated_keyboard)
+  await callback.answer(f"Пост стал {'активным' if new_status else 'неактивным'}")
+#endregion
 
 
 #^ Регистрируем все хендлеры 
@@ -180,7 +436,14 @@ def register_post_callbacks(dp: Dispatcher):
   dp.callback_query.register(view_post_handler, ViewPostCallback.filter())
   dp.callback_query.register(back_to_list_handler, BackToListCallback.filter())
   dp.callback_query.register(skip_media_handler, SkipMediaCallback.filter())
+  dp.callback_query.register(edit_description_handler, EditDescriptionCallback.filter())
+  dp.callback_query.register(edit_media_handler, EditMediaCallback.filter())
+  dp.callback_query.register(edit_time_handler, EditTimeCallback.filter())
+  dp.callback_query.register(toggle_active_handler, ToggleActiveCallback.filter())
   dp.message.register(post_title_handler, PostCreationState.title)
   dp.message.register(post_content_handler, PostCreationState.content)
   dp.message.register(post_media_handler, PostCreationState.media)
   dp.message.register(post_schedule_handler, PostCreationState.schedule_time)
+  dp.message.register(update_description_handler, PostEditState.edit_content)
+  dp.message.register(update_media_handler, PostEditState.edit_media)
+  dp.message.register(update_time_handler, PostEditState.edit_time)

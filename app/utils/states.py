@@ -5,3 +5,8 @@ class PostCreationState(StatesGroup):
   content = State()
   media = State()
   schedule_time = State()
+  
+class PostEditState(StatesGroup):
+  edit_content = State()
+  edit_media = State()
+  edit_time = State()

@@ -9,7 +9,6 @@ class DeletePostCallback(CallbackData, prefix="delete_post"):
 class ViewPostCallback(CallbackData, prefix="view_post"):
   id: int
   
-
 class SkipMediaCallback(CallbackData, prefix="skip_media"):
   pass
 
@@ -21,6 +20,9 @@ class EditMediaCallback(CallbackData, prefix="edit_media"):
 
 class EditTimeCallback(CallbackData, prefix="edit_time"):
   id: int
+  
+class ToggleActiveCallback(CallbackData, prefix="toggle_active"):
+  id:int
   
 class BackToListCallback(CallbackData, prefix="back_to_list"):
   pass

@@ -1,5 +1,5 @@
 from datetime import time
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from app.core.config import CONFIG
@@ -22,9 +22,12 @@ async def init_db():
 #^ Получаем все посты из БД 
 async def get_all_posts():
   async with async_session() as session:
-    query = select(Post.id, Post.title)
+    query = select(Post.id, Post.title, Post.is_active)
     result = await session.execute(query)
-    posts = [{"id": row.id, "title": row.title} for row in result.fetchall()]
+    posts = [
+      {"id": row.id, "title": row.title, "is_active": row.is_active} 
+      for row in result.fetchall()
+    ]
   return posts
 
 
@@ -64,3 +67,48 @@ async def get_post_by_id(post_id: int):
     result = await session.execute(query)
     post = result.scalar_one_or_none()
     return post
+
+
+#^ Обновление описания поста
+async def update_post_description(post_id: id, new_description: str):
+  async with async_session() as session:
+    await session.execute(
+      update(Post).
+      where(Post.id == post_id)
+      .values(content=new_description)
+    )
+    await session.commit()
+
+
+#^ Обновление медиа поста
+async def update_post_media(post_id: int, media_file_id: str):
+  async with async_session() as session:
+    await session.execute(
+      update(Post)
+      .where(Post.id == post_id)
+      .values(media_content=media_file_id)
+    )
+    await session.commit()
+
+
+#^ Обновление времени рассылки поста
+async def update_post_time(post_id: int, schedule_time: time):
+  async with async_session() as session:
+    await session.execute(
+      update(Post)
+      .where(Post.id == post_id)
+      .values(schedule_time=schedule_time)
+    )
+    await session.commit()
+    
+
+#^ Переключение активности поста
+async def toggle_post_active(post_id: int, is_active: bool):
+  async with async_session() as session:
+    stmt = (
+      update(Post)
+      .where(Post.id == post_id)
+      .values(is_active=is_active)
+    )
+    await session.execute(stmt)
+    await session.commit()
