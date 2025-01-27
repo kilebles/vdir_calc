@@ -1,13 +1,13 @@
 import asyncio
 from aiogram import Dispatcher, F
 from datetime import datetime, time
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, InputMediaPhoto, InputMediaVideo
 from aiogram.fsm.context import FSMContext
 from app.database import get_all_posts, add_post, delete_post, get_post_by_id
-from app.UI.inline import get_admin_keyboard, get_view_post_keyboard
+from app.UI.inline import get_admin_keyboard, get_view_post_keyboard, get_skip_media_keyboard
 from app.utils.states import PostCreationState
 from app.handlers.callbacks.callback_data import (
-  BackToListCallback, CreatePostCallback, DeletePostCallback, ViewPostCallback
+  BackToListCallback, CreatePostCallback, DeletePostCallback, SkipMediaCallback, ViewPostCallback
 )
 
 #^ Начало создания поста 
@@ -28,15 +28,47 @@ async def post_title_handler(message: Message, state: FSMContext):
 async def post_content_handler(message: Message, state: FSMContext):
   await state.update_data(content=message.text)
   await state.set_state(PostCreationState.media)
-  await message.answer("<b><i>Добавьте медиаконтент к посту (по желанию, пока заглугшка) ✏</i></b>", parse_mode="HTML")
+  await message.answer(
+    "<b><i>Добавьте медиаконтент к посту (по желанию, пока заглугшка) ✏</i></b>", 
+    reply_markup=get_skip_media_keyboard(),
+    parse_mode="HTML"
+    )
 
 
 #^ Указание медиаконтента
 async def post_media_handler(message: Message, state: FSMContext):
-  await state.update_data(media_content=message.text)
+  media_file_id = None
+  
+  if message.photo:
+    media_file_id = message.photo[-1].file_id
+  elif message.video:
+    media_file_id = message.video.file_id
+  else:
+    error_message = await message.answer(
+      "<b>💢 Пожалуйста, отправьте фото,\nили пропустите этот шаг</b>", 
+      parse_mode="HTML"
+    )
+    await asyncio.sleep(3)
+    await error_message.delete()
+    return
+  
+  await state.update_data(media_content=media_file_id)
   await state.set_state(PostCreationState.schedule_time)
-  await message.answer("<b><i>✏ Введите время для рассылки в формате ЧЧ:MM:</i></b>", parse_mode="HTML")
-  #TODO Доделать потом с медиаконтентом 
+  await message.answer(
+    "<b><i>✏ Введите время для рассылки в формате ЧЧ:MM:</i></b>",
+    parse_mode="HTML")
+
+
+#^ Пропуск добавления медиа
+async def skip_media_handler(callback: CallbackQuery, state: FSMContext):
+  await state.update_data(media_content=None)
+  
+  await state.set_state(PostCreationState.schedule_time)
+  await callback.message.edit_text(
+    "<b><i>✏ Введите время для рассылки в формате ЧЧ:MM:</i></b>", 
+    parse_mode="HTML"
+  )
+  await callback.answer()
 
 
 #^ Указание времени рассылки
@@ -99,17 +131,22 @@ async def view_post_handler(callback: CallbackQuery, callback_data: ViewPostCall
   post_text = (
     f"<b>Время рассылки:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
     f"<b>Название поста:</b> <u><b>{post.title}</b></u>\n"
-    f"<b>Медиа поста:</b> {post.media_content or 'Нет медиа'}\n"
     f"<b>Текст поста:</b> <i><blockquote expandable>{post.content}</blockquote></i>"
   )
   
   keyboard = get_view_post_keyboard(post_id)
   
-  await callback.message.edit_text(
-    text=post_text,
-    reply_markup=keyboard,
-    parse_mode="HTML"
-  )
+  if post.media_content:
+    media = InputMediaPhoto(media=post.media_content, caption=post_text, parse_mode="HTML")
+    # TODO ДЛЯ ВИДЕО
+    # TODO media = InputMediaVideo(media=post.media_content, caption=post_text, parse_mode="HTML")
+    await callback.message.edit_media(media=media, reply_markup=keyboard)
+  else:
+    await callback.message.edit_text(
+      text=post_text,
+      reply_markup=keyboard,
+      parse_mode="HTML"
+    )
   
   await callback.answer()
   
@@ -119,11 +156,19 @@ async def back_to_list_handler(callback: CallbackQuery, callback_data: BackToLis
   posts = await get_all_posts()
   keyboard = get_admin_keyboard(posts)
   
-  await callback.message.edit_text(
-    text="<b>Вы можете создать новый пост для рассылки,\nили <code>изменить\отключить\удалить</code> существующий 👇🏻</b>",
-    reply_markup=keyboard,
-    parse_mode="HTML"
-  )
+  try:
+    await callback.message.edit_text(
+      text="<b>Вы можете создать новый пост для рассылки,\nили <code>изменить\отключить\удалить</code> существующий 👇🏻</b>",
+      reply_markup=keyboard,
+      parse_mode="HTML"
+    )
+  except Exception as e:
+    await callback.message.delete()
+    await callback.message.answer(
+      text="<b>Вы можете создать новый пост для рассылки,\nили <code>изменить\отключить\удалить</code> существующий 👇🏻</b>",
+      reply_markup=keyboard,
+      parse_mode="HTML"
+    )
   
   await callback.answer()
 
@@ -134,6 +179,7 @@ def register_post_callbacks(dp: Dispatcher):
   dp.callback_query.register(delete_post_handler, DeletePostCallback.filter())
   dp.callback_query.register(view_post_handler, ViewPostCallback.filter())
   dp.callback_query.register(back_to_list_handler, BackToListCallback.filter())
+  dp.callback_query.register(skip_media_handler, SkipMediaCallback.filter())
   dp.message.register(post_title_handler, PostCreationState.title)
   dp.message.register(post_content_handler, PostCreationState.content)
   dp.message.register(post_media_handler, PostCreationState.media)
