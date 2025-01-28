@@ -3,7 +3,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 from app.core.config import CONFIG
-from app.database.models import Base, Post
+from app.database.models import Base, Post, User
 
 engine = create_async_engine(CONFIG.DATABASE_URL, echo=True)
 
@@ -12,13 +12,13 @@ async_session = sessionmaker(
   expire_on_commit=False,
   class_=AsyncSession
 )
-
 #^ Инициализируем БД 
 async def init_db():
   async with engine.begin() as conn:
     await conn.run_sync(Base.metadata.create_all)
 
 
+#region #&Posts
 #^ Получаем все посты из БД 
 async def get_all_posts():
   async with async_session() as session:
@@ -112,3 +112,30 @@ async def toggle_post_active(post_id: int, is_active: bool):
     )
     await session.execute(stmt)
     await session.commit()
+#endregion
+
+
+
+
+#region #&Users
+#^ Регаем юзера
+async def add_user(tg_id: int, username: str):
+  async with async_session() as session:
+    user = await session.execute(select(User).where(User.tg_id == tg_id))
+    if user.scalar_one_or_none() is None:
+      new_user = User(
+        tg_id=tg_id,
+        username=username
+      )
+      session.add(new_user)
+      await session.commit()
+      return new_user
+
+
+#^ Получаем всех юзеров
+async def get_all_users():
+  async with async_session() as session:
+    query = select(User.tg_id)
+    result = await session.execute(query)
+    users = [row.tg_id for row in result.fetchall()]
+    return users

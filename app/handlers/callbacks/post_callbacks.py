@@ -176,6 +176,7 @@ async def view_post_handler(callback: CallbackQuery, callback_data: ViewPostCall
 
 
 
+
 #region #&Настройка постов
 #^ Преобразуем объект пост в словарь
 def post_to_dict(post:Post) -> dict:

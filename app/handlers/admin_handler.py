@@ -10,9 +10,6 @@ router = Router()
 
 @router.message(Command(commands=["admin"]))
 async def admin_handler(message: Message) -> None:
-  print(f"User ID: {message.from_user.id}")
-  print(f"Admin IDs: {CONFIG.ADMIN_IDS}")
-  
   if message.from_user.id not in CONFIG.ADMIN_IDS:
     error_message = await message.answer("❗ У вас нет доступа к этой команде")
     await asyncio.sleep(3)
@@ -26,5 +23,4 @@ async def admin_handler(message: Message) -> None:
     reply_markup=keyboard,
     parse_mode="HTML"
   )
-    
   

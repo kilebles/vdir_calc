@@ -25,3 +25,15 @@ class Post(Base):
     default=lambda: datetime.now(timezone.utc).replace(tzinfo=None),
     onupdate=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
   )
+  
+
+class User(Base):
+  __tablename__ = "user"
+  
+  id = Column(Integer, primary_key=True, autoincrement=True)
+  tg_id = Column(Integer, unique=True, nullable=False)
+  username = Column(String(255), nullable=True)
+  created_at = Column(
+    DateTime,
+    default=lambda: datetime.now(timezone.utc).replace(tzinfo=None)
+  )
