@@ -1,10 +1,10 @@
 import asyncio
-from aiogram import Dispatcher, F
+from aiogram import Dispatcher, F, Router
 from datetime import datetime, time
 from aiogram.types import CallbackQuery, Message, InputMediaPhoto, InputMediaVideo
 from aiogram.fsm.context import FSMContext
 from app.database import(
-  get_all_posts, add_post, 
+  get_all_posts, add_post, Post,
   delete_post, get_post_by_id,update_post_time,
   update_post_media, update_post_description, toggle_post_active
   ) 
@@ -16,8 +16,10 @@ from app.handlers.callbacks.callback_data import(
   SkipMediaCallback, ViewPostCallback, ToggleActiveCallback
 )
 
+router = Router()
 
 #region #& Создание постов 
+@router.callback_query(CreatePostCallback.filter())
 #^ Начало создания поста 
 async def create_post_callback(callback: CallbackQuery, state: FSMContext):
   await state.set_state(PostCreationState.title)
@@ -26,6 +28,7 @@ async def create_post_callback(callback: CallbackQuery, state: FSMContext):
 
 
 #^ Указание названия поста
+@router.message(PostCreationState.title)
 async def post_title_handler(message: Message, state: FSMContext):
   await state.update_data(title=message.text)
   await state.set_state(PostCreationState.content)
@@ -33,6 +36,7 @@ async def post_title_handler(message: Message, state: FSMContext):
   
   
 #^ Указания контента поста
+@router.message(PostCreationState.content)
 async def post_content_handler(message: Message, state: FSMContext):
   await state.update_data(content=message.text)
   await state.set_state(PostCreationState.media)
@@ -44,6 +48,7 @@ async def post_content_handler(message: Message, state: FSMContext):
 
 
 #^ Указание медиаконтента
+@router.message(PostCreationState.media)
 async def post_media_handler(message: Message, state: FSMContext):
   media_file_id = None
   
@@ -68,6 +73,7 @@ async def post_media_handler(message: Message, state: FSMContext):
 
 
 #^ Пропуск добавления медиа
+@router.callback_query(SkipMediaCallback.filter())
 async def skip_media_handler(callback: CallbackQuery, state: FSMContext):
   await state.update_data(media_content=None)
   
@@ -80,6 +86,7 @@ async def skip_media_handler(callback: CallbackQuery, state: FSMContext):
 
 
 #^ Указание времени рассылки
+@router.message(PostCreationState.schedule_time)
 async def post_schedule_handler(message: Message, state: FSMContext):
   user_data = await state.get_data()
   
@@ -112,6 +119,7 @@ async def post_schedule_handler(message: Message, state: FSMContext):
 
 
 #^ Удаление поста
+@router.callback_query(DeletePostCallback.filter())
 async def delete_post_handler(callback: CallbackQuery, callback_data: DeletePostCallback):
   post_id = callback_data.id
   
@@ -128,6 +136,7 @@ async def delete_post_handler(callback: CallbackQuery, callback_data: DeletePost
 
 
 #^ Просмотр поста
+@router.callback_query(ViewPostCallback.filter())
 async def view_post_handler(callback: CallbackQuery, callback_data: ViewPostCallback):
   post_id = callback_data.id
   post = await get_post_by_id(post_id)
@@ -168,7 +177,20 @@ async def view_post_handler(callback: CallbackQuery, callback_data: ViewPostCall
 
 
 #region #&Настройка постов
-#^ Изменение описания
+#^ Преобразуем объект пост в словарь
+def post_to_dict(post:Post) -> dict:
+  return {
+    "id": post.id,
+    "title": post.title,
+    "content": post.content,
+    "media_content": post.media_content,
+    "schedule_time": post.schedule_time,
+    "is_active": post.is_active,
+  }
+
+
+#^ Изменение описани
+@router.callback_query(EditDescriptionCallback.filter())
 async def edit_description_handler(
     callback: CallbackQuery, 
     callback_data: EditDescriptionCallback, 
@@ -192,6 +214,7 @@ async def edit_description_handler(
 
 
 #^ Обработка нового описания
+@router.message(PostEditState.edit_content)
 async def update_description_handler(message: Message, state: FSMContext):
   data = await state.get_data()
   post_id = data.get("post_id")
@@ -200,7 +223,7 @@ async def update_description_handler(message: Message, state: FSMContext):
   await state.clear()
 
   post = await get_post_by_id(post_id)
-  keyboard = get_view_post_keyboard(post_id)
+  keyboard = get_view_post_keyboard(post_to_dict(post))
 
   post_text = (
     f"<b>Время рассылки:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
@@ -232,6 +255,7 @@ async def update_description_handler(message: Message, state: FSMContext):
   
 
 #^ Изменение медиа
+@router.callback_query(EditMediaCallback.filter())
 async def edit_media_handler(
     callback: CallbackQuery,
     callback_data: EditMediaCallback,
@@ -254,6 +278,7 @@ async def edit_media_handler(
   
   
 #^ Обработчик нового медиа
+@router.message(PostEditState.edit_media)
 async def update_media_handler(message: Message, state: FSMContext):
   data = await state.get_data()
   post_id = data.get("post_id")
@@ -275,7 +300,7 @@ async def update_media_handler(message: Message, state: FSMContext):
   await state.clear()
 
   post = await get_post_by_id(post_id)
-  keyboard = get_view_post_keyboard(post_id)
+  keyboard = get_view_post_keyboard(post_to_dict(post))
 
   post_text = (
     f"<b>Время рассылки:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
@@ -285,7 +310,7 @@ async def update_media_handler(message: Message, state: FSMContext):
 
   await message.delete()
 
-  if post.media_content.startswith("AgAC"):  # Если это фото
+  if post.media_content.startswith("AgAC"):  # Типа фото
     await message.answer_photo(
       photo=post.media_content,
       caption=post_text,
@@ -302,6 +327,7 @@ async def update_media_handler(message: Message, state: FSMContext):
 
 
 #^ Изменение времени
+@router.callback_query(EditTimeCallback.filter())
 async def edit_time_handler(
   callback: CallbackQuery, 
   callback_data: EditTimeCallback,
@@ -324,6 +350,7 @@ async def edit_time_handler(
 
 
 #^ Обработка изменения времени
+@router.message(PostEditState.edit_time)
 async def update_time_handler(message: Message, state: FSMContext):
   data = await state.get_data()
   post_id = data.get("post_id")
@@ -344,7 +371,7 @@ async def update_time_handler(message: Message, state: FSMContext):
     await state.clear()
     
     post = await get_post_by_id(post_id)
-    keyboard = get_view_post_keyboard(post_id)
+    keyboard = get_view_post_keyboard(post_to_dict(post))
     
     post_text = (
             f"<b>Время рассылки:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
@@ -383,6 +410,7 @@ async def update_time_handler(message: Message, state: FSMContext):
 
 
 #^ Назад к списку постов
+@router.callback_query(BackToListCallback.filter())
 async def back_to_list_handler(callback: CallbackQuery, callback_data: BackToListCallback):
   posts = await get_all_posts()
   keyboard = get_admin_keyboard(posts)
@@ -403,6 +431,7 @@ async def back_to_list_handler(callback: CallbackQuery, callback_data: BackToLis
 
 
 #^ Переключение состояния поста
+@router.callback_query(ToggleActiveCallback.filter())
 async def toggle_active_handler(
   callback: CallbackQuery,
   callback_data: ToggleActiveCallback
@@ -427,23 +456,3 @@ async def toggle_active_handler(
   await callback.message.edit_reply_markup(reply_markup=updated_keyboard)
   await callback.answer(f"Пост стал {'активным' if new_status else 'неактивным'}")
 #endregion
-
-
-#^ Регистрируем все хендлеры 
-def register_post_callbacks(dp: Dispatcher):
-  dp.callback_query.register(create_post_callback, CreatePostCallback.filter())
-  dp.callback_query.register(delete_post_handler, DeletePostCallback.filter())
-  dp.callback_query.register(view_post_handler, ViewPostCallback.filter())
-  dp.callback_query.register(back_to_list_handler, BackToListCallback.filter())
-  dp.callback_query.register(skip_media_handler, SkipMediaCallback.filter())
-  dp.callback_query.register(edit_description_handler, EditDescriptionCallback.filter())
-  dp.callback_query.register(edit_media_handler, EditMediaCallback.filter())
-  dp.callback_query.register(edit_time_handler, EditTimeCallback.filter())
-  dp.callback_query.register(toggle_active_handler, ToggleActiveCallback.filter())
-  dp.message.register(post_title_handler, PostCreationState.title)
-  dp.message.register(post_content_handler, PostCreationState.content)
-  dp.message.register(post_media_handler, PostCreationState.media)
-  dp.message.register(post_schedule_handler, PostCreationState.schedule_time)
-  dp.message.register(update_description_handler, PostEditState.edit_content)
-  dp.message.register(update_media_handler, PostEditState.edit_media)
-  dp.message.register(update_time_handler, PostEditState.edit_time)
