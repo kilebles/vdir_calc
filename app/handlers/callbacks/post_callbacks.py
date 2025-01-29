@@ -1,6 +1,6 @@
 import asyncio
 from aiogram import Dispatcher, F, Router
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from aiogram.types import CallbackQuery, Message, InputMediaPhoto, InputMediaVideo
 from aiogram.fsm.context import FSMContext
 from app.database import(
@@ -36,12 +36,23 @@ async def post_title_handler(message: Message, state: FSMContext):
   
   
 #^ Указания контента поста
+MAX_MESSAGE_LENGTH = 1024
 @router.message(PostCreationState.content)
 async def post_content_handler(message: Message, state: FSMContext):
+  if len(message.text) > MAX_MESSAGE_LENGTH:
+    error_message = await message.answer(
+      f"❌ Ваш текст слишком длинный! Telegram поддерживает только {MAX_MESSAGE_LENGTH} символов \n"
+      f"✏️ Уменьшите длину текста и попробуйте снова",
+      parse_mode="HTML"
+    )
+    await asyncio.sleep(3)
+    await error_message.delete()
+    return
+    
   await state.update_data(content=message.text)
   await state.set_state(PostCreationState.media)
   await message.answer(
-    "<b><i>Добавьте медиаконтент к посту (по желанию, пока заглугшка) ✏</i></b>", 
+    "<b><i>Добавьте <code>фото/видео</code> к посту ✏</i></b>", 
     reply_markup=get_skip_media_keyboard(),
     parse_mode="HTML"
     )
@@ -58,7 +69,7 @@ async def post_media_handler(message: Message, state: FSMContext):
     media_file_id = message.video.file_id
   else:
     error_message = await message.answer(
-      "<b>💢 Пожалуйста, отправьте фото,\nили пропустите этот шаг</b>", 
+      "<b>💢 Пожалуйста, отправьте <code>фото\видео</code>, \nили пропустите этот шаг</b>", 
       parse_mode="HTML"
     )
     await asyncio.sleep(3)
@@ -68,7 +79,7 @@ async def post_media_handler(message: Message, state: FSMContext):
   await state.update_data(media_content=media_file_id)
   await state.set_state(PostCreationState.schedule_time)
   await message.answer(
-    "<b><i>✏ Введите время для рассылки в формате ЧЧ:MM:</i></b>",
+    "<b><i>✏ Введите время для рассылки в формате ЧЧ:MM по МСК:</i></b>",
     parse_mode="HTML")
 
 
@@ -79,7 +90,7 @@ async def skip_media_handler(callback: CallbackQuery, state: FSMContext):
   
   await state.set_state(PostCreationState.schedule_time)
   await callback.message.edit_text(
-    "<b><i>✏ Введите время для рассылки в формате ЧЧ:MM:</i></b>", 
+    "<b><i>✏ Введите время для рассылки в формате ЧЧ:MM по МСК:</i></b>", 
     parse_mode="HTML"
   )
   await callback.answer()
@@ -94,12 +105,14 @@ async def post_schedule_handler(message: Message, state: FSMContext):
     schedule_time = datetime.strptime(message.text, "%H:%M").time()
   except ValueError:
     eror_message = await message.answer(
-      "<b><i>💢 Неверный формат времени. Укажите в формате <code>ЧЧ:MM</code></i></b>", 
+      "<b><i>💢 Неверный формат времени. Укажите в формате <code>ЧЧ:MM</code> по МСК</i></b>", 
       parse_mode="HTML"
       )
     await asyncio.sleep(3)
     await eror_message.delete()
-    #TODO Доделать под МСК
+    return
+  
+  #TODO schedule_time_msk = (datetime.combine(datetime.today(), user_time) - timedelta(hours=3)).time()
   
   await add_post(
     title=user_data["title"],
@@ -146,7 +159,7 @@ async def view_post_handler(callback: CallbackQuery, callback_data: ViewPostCall
     return
   
   post_text = (
-    f"<b>Время рассылки:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
+    f"<b>Время рассылки МСК:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
     f"<b>Название поста:</b> <u><b>{post.title}</b></u>\n"
     f"<b>Текст поста:</b> <i><blockquote expandable>{post.content}</blockquote></i>"
   )
@@ -237,7 +250,7 @@ async def update_description_handler(message: Message, state: FSMContext):
   keyboard = get_view_post_keyboard(post_to_dict(post))
 
   post_text = (
-    f"<b>Время рассылки:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
+    f"<b>Время рассылки МСК:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
     f"<b>Название поста:</b> <u><b>{post.title}</b></u>\n"
     f"<b>Текст поста:</b> <i><blockquote expandable>{post.content}</blockquote></i>"
   )
@@ -314,7 +327,7 @@ async def update_media_handler(message: Message, state: FSMContext):
   keyboard = get_view_post_keyboard(post_to_dict(post))
 
   post_text = (
-    f"<b>Время рассылки:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
+    f"<b>Время рассылки МСК:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
     f"<b>Название поста:</b> <u><b>{post.title}</b></u>\n"
     f"<b>Текст поста:</b> <i><blockquote expandable>{post.content}</blockquote></i>"
   )
@@ -385,7 +398,7 @@ async def update_time_handler(message: Message, state: FSMContext):
     keyboard = get_view_post_keyboard(post_to_dict(post))
     
     post_text = (
-            f"<b>Время рассылки:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
+            f"<b>Время рассылки МСК:</b> <code>{post.schedule_time.strftime('%H:%M')}</code>\n\n"
             f"<b>Название поста:</b> <u><b>{post.title}</b></u>\n"
             f"<b>Текст поста:</b> <i><blockquote expandable>{post.content}</blockquote></i>"
         )
