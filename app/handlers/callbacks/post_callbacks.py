@@ -160,9 +160,19 @@ async def view_post_handler(callback: CallbackQuery, callback_data: ViewPostCall
     })
   
   if post.media_content:
-    media = InputMediaPhoto(media=post.media_content, caption=post_text, parse_mode="HTML")
-    # TODO ДЛЯ ВИДЕО
-    # TODO media = InputMediaVideo(media=post.media_content, caption=post_text, parse_mode="HTML")
+    if post.media_content.startswith("AgAC"):
+      media = InputMediaPhoto(
+        media=post.media_content, 
+        caption=post_text, 
+        parse_mode="HTML"
+      )
+    else:
+      media = InputMediaVideo(
+        media=post.media_content, 
+        caption=post_text, 
+        parse_mode="HTML"
+      )
+      
     await callback.message.edit_media(media=media, reply_markup=keyboard)
   else:
     await callback.message.edit_text(

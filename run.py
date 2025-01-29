@@ -5,7 +5,8 @@ from app import(
   CONFIG, 
   set_default_commands, 
   register_handlers,
-  init_db
+  init_db,
+  start_scheduler
 ) 
 
 logger = logging.getLogger(__name__)
@@ -19,6 +20,7 @@ async def main() -> None:
   logger.info("Start bot")
   await set_default_commands(bot)
   await register_handlers(dp)
+  start_scheduler(bot)
   await dp.start_polling(bot)
   
 if __name__ == "__main__":

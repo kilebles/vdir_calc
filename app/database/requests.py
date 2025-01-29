@@ -22,10 +22,15 @@ async def init_db():
 #^ Получаем все посты из БД 
 async def get_all_posts():
   async with async_session() as session:
-    query = select(Post.id, Post.title, Post.is_active)
+    query = select(Post.id, Post.title, Post.is_active, Post.schedule_time)
     result = await session.execute(query)
     posts = [
-      {"id": row.id, "title": row.title, "is_active": row.is_active} 
+      {
+        "id": row.id, 
+        "title": row.title, 
+        "is_active": row.is_active,
+        "schedule_time": row.schedule_time
+      } 
       for row in result.fetchall()
     ]
   return posts
