@@ -10,3 +10,11 @@ class PostEditState(StatesGroup):
   edit_content = State()
   edit_media = State()
   edit_time = State()
+  
+class FreightCalculationState(StatesGroup):
+  choosing_delivery_type = State()
+  entering_origin_city = State()
+  entering_destination_city = State()
+  entering_weight = State()
+  entering_volume = State()
+  confirming_data = State()

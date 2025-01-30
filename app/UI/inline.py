@@ -1,9 +1,22 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from app.handlers.callbacks.callback_data import(
-  BackToListCallback, CreatePostCallback, DeletePostCallback, 
-  SkipMediaCallback, ViewPostCallback, EditDescriptionCallback,
-  EditMediaCallback, EditTimeCallback, ToggleActiveCallback,
-  ContinueStartCallback, CalcBuildCallback, CalcConteinersCallback
+  BackToListCallback, 
+  CreatePostCallback, 
+  DeletePostCallback, 
+  SkipMediaCallback, 
+  ViewPostCallback, 
+  EditDescriptionCallback,
+  EditMediaCallback, 
+  EditTimeCallback, 
+  ToggleActiveCallback,
+  ContinueStartCallback, 
+  CalcBuildCallback, 
+  CalcConteinersCallback,
+  CalcAutoCallback,
+  CalcAviaCallback,
+  CalcZdCallback,
+  CalcBackToMenu,
+  CalcConfirmCallback
 )
 
 
@@ -86,3 +99,33 @@ def get_calculator_keyboard() -> InlineKeyboardMarkup:
   keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
   
   return keyboard
+
+
+#^ Клавиатура для сборки
+def get_build_keyboard() -> InlineKeyboardMarkup:
+  buttons = [
+    [
+      InlineKeyboardButton(text="✈️ Авиа", callback_data=CalcAviaCallback().pack()),
+      InlineKeyboardButton(text="🚛 Авто", callback_data=CalcAutoCallback().pack()),
+      InlineKeyboardButton(text="🚂 ЖД", callback_data=CalcZdCallback().pack())
+    ],
+    [
+      InlineKeyboardButton(text="↩ Назад", callback_data=CalcBackToMenu().pack())
+    ]
+  ]
+  
+  keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+  
+  return keyboard
+
+
+#^ Клавиатура подтверждения расчета
+def get_confirm_keyboard() -> InlineKeyboardMarkup:
+  return InlineKeyboardMarkup(inline_keyboard=[
+    [
+      InlineKeyboardButton(
+        text="🆗 Рассчитать",
+        callback_data=CalcConfirmCallback().pack()
+      )
+    ]
+  ])

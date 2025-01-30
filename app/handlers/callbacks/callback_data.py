@@ -35,3 +35,18 @@ class CalcBuildCallback(CallbackData, prefix="build"):
 
 class CalcConteinersCallback(CallbackData, prefix="conteiners"):
   pass
+
+class CalcAutoCallback(CallbackData, prefix="calc_auto"):
+  pass
+
+class CalcAviaCallback(CallbackData, prefix="calc_avia"):
+  pass
+
+class CalcZdCallback(CallbackData, prefix="calc_zd"):
+  pass
+
+class CalcBackToMenu(CallbackData, prefix="calc_back"):
+  pass
+
+class CalcConfirmCallback(CallbackData, prefix="calc_confirm"):
+  pass
