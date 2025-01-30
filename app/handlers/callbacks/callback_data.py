@@ -26,3 +26,12 @@ class ToggleActiveCallback(CallbackData, prefix="toggle_active"):
   
 class BackToListCallback(CallbackData, prefix="back_to_list"):
   pass
+
+class ContinueStartCallback(CallbackData, prefix="continue"):
+  pass
+
+class CalcBuildCallback(CallbackData, prefix="build"):
+  pass
+
+class CalcConteinersCallback(CallbackData, prefix="conteiners"):
+  pass

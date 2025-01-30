@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, Interval, Time
+from sqlalchemy import BigInteger, Column, Integer, String, Text, Boolean, DateTime, Interval, Time
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime, timedelta, timezone
 
@@ -31,7 +31,7 @@ class User(Base):
   __tablename__ = "user"
   
   id = Column(Integer, primary_key=True, autoincrement=True)
-  tg_id = Column(Integer, unique=True, nullable=False)
+  tg_id = Column(BigInteger, unique=True, nullable=False)
   username = Column(String(255), nullable=True)
   created_at = Column(
     DateTime,

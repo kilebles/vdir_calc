@@ -2,7 +2,8 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from app.handlers.callbacks.callback_data import(
   BackToListCallback, CreatePostCallback, DeletePostCallback, 
   SkipMediaCallback, ViewPostCallback, EditDescriptionCallback,
-  EditMediaCallback, EditTimeCallback, ToggleActiveCallback
+  EditMediaCallback, EditTimeCallback, ToggleActiveCallback,
+  ContinueStartCallback, CalcBuildCallback, CalcConteinersCallback
 )
 
 
@@ -51,11 +52,37 @@ def get_view_post_keyboard(post: dict) -> InlineKeyboardMarkup:
 
 #^ Пропуск шага с добавлением медиаконтента
 def get_skip_media_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [
-            InlineKeyboardButton(
-                text="⏭️ Пропустить",
-                callback_data=SkipMediaCallback().pack()
-            )
-        ]
-    ])
+  return InlineKeyboardMarkup(inline_keyboard=[
+    [
+      InlineKeyboardButton(
+        text="⏭️ Пропустить",
+        callback_data=SkipMediaCallback().pack()
+      )
+    ]
+  ])
+
+
+#^ Кнопка "Продолжить"
+def get_continue_keyboard() -> InlineKeyboardMarkup:
+  return InlineKeyboardMarkup(inline_keyboard=[
+    [
+      InlineKeyboardButton(
+        text="🆗 Продолжить",
+        callback_data=ContinueStartCallback().pack()
+      )
+    ]
+  ])
+
+
+#^ 1-я клавиатура калькулятора
+def get_calculator_keyboard() -> InlineKeyboardMarkup:
+  buttons = [
+    [
+      InlineKeyboardButton(text="🧺 Сборка", callback_data=CalcBuildCallback().pack()),
+      InlineKeyboardButton(text="📦 Контейнеры", callback_data=CalcConteinersCallback().pack())
+    ]
+  ]
+  
+  keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+  
+  return keyboard
