@@ -1,6 +1,6 @@
 import asyncio
 from aiogram import Router
-from datetime import datetime
+from datetime import datetime, timedelta
 from aiogram.types import CallbackQuery, Message, InputMediaPhoto, InputMediaVideo
 from aiogram.fsm.context import FSMContext
 from app.database import(
@@ -114,7 +114,7 @@ async def post_schedule_handler(message: Message, state: FSMContext):
   user_data = await state.get_data()
   
   try:
-    schedule_time = datetime.strptime(message.text, "%H:%M").time()
+    user_time = datetime.strptime(message.text, "%H:%M").time()
   except ValueError:
     eror_message = await message.answer(
       "<b><i>💢 Неверный формат времени. Укажите в формате <code>ЧЧ:MM</code> по МСК</i></b>", 
@@ -124,13 +124,13 @@ async def post_schedule_handler(message: Message, state: FSMContext):
     await eror_message.delete()
     return
   
-  #TODO schedule_time_msk = (datetime.combine(datetime.today(), user_time) - timedelta(hours=3)).time()
+  schedule_time_msk = (datetime.combine(datetime.today(), user_time) + timedelta(hours=2)).time()
   
   await add_post(
     title=user_data["title"],
     content=user_data["content"],
     media_content=user_data["media_content"],
-    schedule_time=schedule_time
+    schedule_time=schedule_time_msk
   )
   await state.clear()
   

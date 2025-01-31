@@ -105,7 +105,7 @@ async def enter_destination_sity(message: Message, state: FSMContext):
 
 #^ Ввод веса груза
 @router.message(FreightCalculationState.entering_weight)
-async def enter_veigth(message: Message, state: FSMContext):
+async def enter_weigth(message: Message, state: FSMContext):
   try:
     weight = float(message.text)
     await state.update_data(weight=weight)
@@ -149,3 +149,4 @@ async def enter_volume(message: Message, state: FSMContext):
     error_message = await message.answer("❌ Введите число!")
     await asyncio.sleep(3)
     await error_message.delete()
+#endregion
