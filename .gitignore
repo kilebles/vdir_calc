@@ -3,6 +3,7 @@ __pychache__/
 *.py[cod]
 *.log
 .env
+service_account.json
 .idea/
 .vscode/
 alembic.ini
