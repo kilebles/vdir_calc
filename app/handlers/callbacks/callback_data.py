@@ -1,52 +1,69 @@
 from aiogram.filters.callback_data import CallbackData
 
+
 class CreatePostCallback(CallbackData, prefix="create_post"):
-  pass
-  
+    pass
+
+
 class DeletePostCallback(CallbackData, prefix="delete_post"):
-  id: int
-  
+    id: int
+
+
 class ViewPostCallback(CallbackData, prefix="view_post"):
-  id: int
-  
+    id: int
+
+
 class SkipMediaCallback(CallbackData, prefix="skip_media"):
-  pass
+    pass
+
 
 class EditDescriptionCallback(CallbackData, prefix="edit_description"):
-  id: int
-  
+    id: int
+
+
 class EditMediaCallback(CallbackData, prefix="edit_media"):
-  id: int
+    id: int
+
 
 class EditTimeCallback(CallbackData, prefix="edit_time"):
-  id: int
-  
-class ToggleActiveCallback(CallbackData, prefix="toggle_active"):
-  id:int
-  
-class BackToListCallback(CallbackData, prefix="back_to_list"):
-  pass
+    id: int
 
+
+class ToggleActiveCallback(CallbackData, prefix="toggle_active"):
+    id: int
+
+
+class BackToListCallback(CallbackData, prefix="back_to_list"):
+    pass
+
+  
 class ContinueStartCallback(CallbackData, prefix="continue"):
-  pass
+    pass
+
 
 class CalcBuildCallback(CallbackData, prefix="build"):
-  pass
+    pass
+
 
 class CalcConteinersCallback(CallbackData, prefix="conteiners"):
-  pass
+    pass
+
 
 class CalcAutoCallback(CallbackData, prefix="calc_auto"):
-  pass
+    pass
+
 
 class CalcAviaCallback(CallbackData, prefix="calc_avia"):
-  pass
+    pass
+
 
 class CalcZdCallback(CallbackData, prefix="calc_zd"):
-  pass
+    pass
+
 
 class CalcBackToMenu(CallbackData, prefix="calc_back"):
-  pass
+    pass
+
 
 class CalcConfirmCallback(CallbackData, prefix="calc_confirm"):
-  pass
+    pass

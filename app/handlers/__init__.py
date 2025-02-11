@@ -5,6 +5,7 @@ from .admin_handler import router as admin_router
 from .callbacks.post_callbacks import router as post_router
 from .callbacks.calc_callbacks import router as calc_router
 
+
 async def register_handlers(dp: Dispatcher) -> None:
     dp.include_router(start_router)
     dp.include_router(admin_router)

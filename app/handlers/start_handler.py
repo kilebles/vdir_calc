@@ -1,16 +1,18 @@
 from aiogram import Router
 from aiogram.filters import CommandStart
 from aiogram.types import Message
+
 from app.database import add_user
 from app.UI.inline import get_continue_keyboard
 
 router = Router()
 
+
 @router.message(CommandStart())
 async def start_handler(message: Message) -> None:
-  tg_id = message.from_user.id
-  username = message.from_user.username
-  text = f"""
+    tg_id = message.from_user.id
+    username = message.from_user.username
+    text = f"""
 <b>👋 Добро пожаловать, {username or 'друг'}!</b>
 
 Я — ваш персональный помощник по расчёту стоимости доставки грузов. 
@@ -31,11 +33,7 @@ async def start_handler(message: Message) -> None:
 <b>Если вы готовы, нажмите кнопку ниже, чтобы начать:</b>
 """
 
-  keyboard = get_continue_keyboard()
-  
-  await add_user(tg_id, username)
-  await message.answer(
-    text=text,
-    reply_markup=keyboard,
-    parse_mode="HTML"
-  )
+    keyboard = get_continue_keyboard()
+
+    await add_user(tg_id, username)
+    await message.answer(text=text, reply_markup=keyboard, parse_mode="HTML")
