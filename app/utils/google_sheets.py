@@ -1,3 +1,4 @@
+from thefuzz import process
 import gspread
 import logging
 
@@ -7,6 +8,8 @@ from app.core.config import CONFIG
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 SPREADSHEET_NAME = "Ставки ФОБ 28 12 2024"
+
+# region #&Рассчет Auto
 
 
 def get_google_sheet(sheet_name):
@@ -172,3 +175,73 @@ def calculate_delivery_cost(origin_city, destination_city, weight, volume):
     except Exception as e:
         logging.error(f"❌ Ошибка в calculate_delivery_cost: {e}")
         raise e
+
+
+# endregion
+
+
+# region #&Расчет ЖД
+
+
+def get_tariff_zhd(origin_city, destination_city, weight, volume):
+    logging.info(f"📊 Запрос тарифа ЖД для {origin_city} -> {destination_city}, вес {weight} кг, объем {volume} м³")
+
+    sheet = get_google_sheet("RAW Сборка ЖД")
+    headers = sheet.row_values(1)
+    cities = sheet.col_values(2)
+
+    if destination_city not in cities:
+        raise ValueError(f"❌ Город назначения {destination_city} не соответствует данным в таблице!")
+
+    row_index = cities.index(destination_city) + 1
+
+    volume_brackets = ["0 - 3", "3.1 - 5", "5.1 - 10"]
+    volume_column = None
+
+    for i, header in enumerate(headers):
+        header_clean = header.replace(",", ".").replace("м3", "").strip()
+        for bracket in volume_brackets:
+            if bracket in header_clean:
+                low, high = map(float, bracket.split(" - "))
+                if low <= volume <= high:
+                    volume_column = i + 1
+                    break
+        if volume_column:
+            break
+
+    if volume_column is None:
+        raise ValueError("❌ Ошибка: Не удалось найти подходящий тариф по объему!")
+
+    def clean_numeric(value):
+        return float(value.replace("$", "").strip().replace(",", "."))
+
+    try:
+        tariff = clean_numeric(sheet.cell(row_index, volume_column).value)  # 🛠 Чистим `$`
+        export_declaration = clean_numeric(sheet.cell(row_index, headers.index("Экспортная декларация") + 1).value)
+        transit_time = sheet.cell(row_index, headers.index("Транзитное время") + 1).value.strip()
+        additional_conditions = sheet.cell(row_index, headers.index("Доп.Условия") + 1).value.strip()
+        warehouse_costs = sheet.cell(row_index, headers.index("Расходы на СВХ") + 1).value.strip()
+    except Exception as e:
+        raise ValueError(f"❌ Ошибка при обработке данных: {e}")
+
+    total_cost = tariff * volume + export_declaration
+
+    result = {
+        "origin_city": origin_city,
+        "destination_city": destination_city,
+        "weight": weight,
+        "volume": volume,
+        "tariff": tariff,
+        "export_declaration": export_declaration,
+        "transit_time": transit_time,
+        "additional_conditions": additional_conditions,
+        "warehouse_costs": warehouse_costs,
+        "total_cost": total_cost,
+    }
+
+    logging.info(f"✅ Итоговый расчет ЖД: {result}")
+    return result
+
+
+# endregion
+

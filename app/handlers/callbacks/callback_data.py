@@ -67,3 +67,7 @@ class CalcBackToMenu(CallbackData, prefix="calc_back"):
 
 class CalcConfirmCallback(CallbackData, prefix="calc_confirm"):
     pass
+
+
+class CalcConfirmZhdCallback(CallbackData, prefix="calc_confirm_zhd"):
+    pass

@@ -17,6 +17,7 @@ from app.handlers.callbacks.callback_data import (
     CalcZdCallback,
     CalcBackToMenu,
     CalcConfirmCallback,
+    CalcConfirmZhdCallback
 )
 
 
@@ -155,13 +156,26 @@ def get_build_keyboard() -> InlineKeyboardMarkup:
     return keyboard
 
 
-# ^ Клавиатура подтверждения расчета
+# ^ Клавиатура подтверждения расчета auto
 def get_confirm_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
                 InlineKeyboardButton(
                     text="🆗 Рассчитать", callback_data=CalcConfirmCallback().pack()
+                )
+            ]
+        ]
+    )
+    
+
+# ^ Клавиатура подтверждения расчета ЖД
+def get_confirm_keyboard_for_zhd() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text="🆗 Рассчитать", callback_data=CalcConfirmZhdCallback().pack()
                 )
             ]
         ]
