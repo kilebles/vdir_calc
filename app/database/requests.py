@@ -2,6 +2,7 @@ from datetime import time
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
+
 from app.core.config import CONFIG
 from app.database.models import Base, Post, User
 

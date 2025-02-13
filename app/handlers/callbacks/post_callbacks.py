@@ -5,6 +5,8 @@ from aiogram import Router
 from datetime import datetime
 from aiogram.types import CallbackQuery, Message, InputMediaPhoto, InputMediaVideo
 from aiogram.fsm.context import FSMContext
+
+from app.utils.states import PostCreationState, PostEditState
 from app.database import (
     get_all_posts,
     add_post,
@@ -21,7 +23,6 @@ from app.UI.inline import (
     get_view_post_keyboard,
     get_skip_media_keyboard,
 )
-from app.utils.states import PostCreationState, PostEditState
 from app.handlers.callbacks.callback_data import (
     BackToListCallback,
     CreatePostCallback,

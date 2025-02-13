@@ -1,4 +1,5 @@
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+
 from app.handlers.callbacks.callback_data import (
     BackToListCallback,
     CreatePostCallback,

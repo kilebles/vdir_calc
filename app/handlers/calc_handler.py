@@ -1,6 +1,7 @@
 from aiogram import Router
 from aiogram.types import Message
 from aiogram.filters import Command
+
 from app.UI.inline import get_calculator_keyboard
 
 router = Router()

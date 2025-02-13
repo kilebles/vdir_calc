@@ -1,7 +1,9 @@
 import asyncio
+
 from aiogram import Router
 from aiogram.filters import Command
 from aiogram.types import Message
+
 from app.database.requests import get_all_posts
 from app.UI.inline import get_admin_keyboard
 from app.core.config import CONFIG

@@ -1,10 +1,12 @@
 import logging
 import asyncio
+
 from aiogram import Bot
+from pytz import timezone
 from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 from app.database.requests import get_all_posts, get_all_users, get_post_by_id
-from pytz import timezone
 
 MSK_TZ = timezone("Europe/Moscow")
 UTC_TZ = timezone("UTC")

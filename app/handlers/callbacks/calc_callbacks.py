@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import gspread
 
 from aiogram import Router
 from thefuzz import process
@@ -40,9 +39,8 @@ router = Router()
 
 
 def get_available_cities(sheet_name, column_index):
-    """Получает список городов из Google Sheets (убирая пробелы и переводя в нижний регистр)."""
     sheet = get_google_sheet(sheet_name)
-    cities = sheet.col_values(column_index)  # Берем нужный столбец
+    cities = sheet.col_values(column_index)
     clean_cities = [city.strip().lower() for city in cities if city.strip()]
     
     logging.info(f"📜 Доступные города в {sheet_name}: {clean_cities}")
@@ -50,17 +48,17 @@ def get_available_cities(sheet_name, column_index):
 
 
 def find_closest_city(city, available_cities):
-    """Ищет ближайшее совпадение среди городов из Google Sheets."""
     match, score = process.extractOne(city, available_cities)
     logging.info(f"🔍 Ближайшее совпадение для '{city}': {match} (Точность: {score}%)")
-    return match if score > 75 else None  # Если точность больше 75%, берем исправленный вариант
-
+    return match if score > 75 else None
 
 
 # endregion
 
 
 # region #&Вызов клав
+
+
 # ^ Вызов клавиатуры калькулей
 @router.callback_query(ContinueStartCallback.filter())
 async def Continue_handler(callback: CallbackQuery):
@@ -149,7 +147,7 @@ async def enter_origin_city(message: Message, state: FSMContext):
                 f"🔍 Вы имели в виду <b>{corrected_city.capitalize()}</b>? (Исправлено автоматически)",
                 parse_mode="HTML"
             )
-            # Вместо повторного вызова enter_origin_city() просто обновляем данные и переходим к следующему этапу
+            
             sheet = get_google_sheet("RAW Сборка Авто")
             row_index = available_cities.index(corrected_city) + 1
             pod_city = sheet.cell(row_index, 2).value.strip()
@@ -431,3 +429,7 @@ async def confirm_calculation_zhd(callback: CallbackQuery, state: FSMContext):
     
     
 # endregion
+
+@router.callback_query(CalcAviaCallback.filter())
+async def start_calculating_avia(callback: CallbackQuery):
+    await callback.answer("Данная функция в разработке ⚙", show_alert=True)

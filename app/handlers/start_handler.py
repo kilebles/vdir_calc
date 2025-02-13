@@ -1,6 +1,6 @@
 from aiogram import Router
-from aiogram.filters import CommandStart
 from aiogram.types import Message
+from aiogram.filters import CommandStart
 
 from app.database import add_user
 from app.UI.inline import get_continue_keyboard

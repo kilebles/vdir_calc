@@ -1,4 +1,3 @@
-from thefuzz import process
 import gspread
 import logging
 
