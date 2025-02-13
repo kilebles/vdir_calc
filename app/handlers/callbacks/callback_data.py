@@ -45,8 +45,6 @@ class CalcBuildCallback(CallbackData, prefix="build"):
     pass
 
 
-
-
 class CalcAutoCallback(CallbackData, prefix="calc_auto"):
     pass
 

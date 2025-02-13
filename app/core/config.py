@@ -14,6 +14,12 @@ class Config:
     DB_NAME = os.getenv("DB_NAME")
     DB_USER = os.getenv("DB_USER")
     GOOGLE_CREDENTIALS = os.getenv("GOOGLE_CREDENTIALS")
+    SPREADSHEET_NAME = os.getenv("SPREADSHEET_NAME")
+    CONTEINERS_LIST1 = os.getenv("CONTEINERS_LIST1")
+    CONTEINERS_LIST2 = os.getenv("CONTEINERS_LIST2")
+    BUILD_AUTO_LIST = os.getenv("BUILD_AUTO_LIST")
+    BUILD_RAILWAY_LIST = os.getenv("BUILD_RAILWAY_LIST")
+    BUILD_RUSSIA_LIST = os.getenv("BUILD_RUSSIA_LIST")
 
     @property
     def DATABASE_URL(self) -> str:

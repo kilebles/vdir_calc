@@ -9,8 +9,6 @@ from app.core.config import CONFIG
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
-SPREADSHEET_NAME = "Ставки ФОБ 28 12 2024"
-
 
 def get_usd_to_rub_rate():
     url = "https://www.cbr.ru/scripts/XML_daily.asp"
@@ -40,10 +38,10 @@ def get_google_sheet(sheet_name):
     client = gspread.authorize(creds)
 
     try:
-        spreadsheet = client.open(SPREADSHEET_NAME)
-        logging.info(f"✅ Таблица найдена: {SPREADSHEET_NAME}")
+        spreadsheet = client.open(CONFIG.SPREADSHEET_NAME)
+        logging.info(f"✅ Таблица найдена: {CONFIG.SPREADSHEET_NAME}")
     except gspread.exceptions.SpreadsheetNotFound:
-        logging.error(f"❌ Ошибка: Таблица '{SPREADSHEET_NAME}' не найдена! Проверь название и доступы.")
+        logging.error(f"❌ Ошибка: Таблица '{CONFIG.SPREADSHEET_NAME}' не найдена! Проверь название и доступы.")
         raise
 
     sheet = spreadsheet.worksheet(sheet_name)
@@ -53,7 +51,7 @@ def get_google_sheet(sheet_name):
 def get_tariff_before_border(weight, volume):
     logging.info(f"📊 Запрос тарифа ДО ГРАНИЦЫ для веса {weight} кг и объема {volume} м³")
 
-    sheet = get_google_sheet("RAW Сборка Авто")
+    sheet = get_google_sheet(CONFIG.BUILD_AUTO_LIST)
     headers = sheet.row_values(1)
     logging.info(f"🔍 Заголовки таблицы: {headers}")
 
@@ -110,7 +108,7 @@ def get_tariff_before_border(weight, volume):
 def get_tariff_after_border(destination_city, weight, volume):
     logging.info(f"📊 Запрос тарифа ПОСЛЕ ГРАНИЦЫ для {destination_city}, вес {weight} кг, объем {volume} м³")
 
-    sheet = get_google_sheet("RAW Сборка по РФ")
+    sheet = get_google_sheet(CONFIG.BUILD_RUSSIA_LIST)
     cities = sheet.col_values(2)
 
     if destination_city not in cities:
@@ -201,7 +199,7 @@ def calculate_delivery_cost(origin_city, destination_city, weight, volume):
 def get_tariff_zhd(origin_city, destination_city, weight, volume):
     logging.info(f"📊 Запрос тарифа ЖД для {origin_city} -> {destination_city}, вес {weight} кг, объем {volume} м³")
 
-    sheet = get_google_sheet("RAW Сборка ЖД")
+    sheet = get_google_sheet(CONFIG.BUILD_RAILWAY_LIST)
     headers = sheet.row_values(1)
     cities = sheet.col_values(2)
 
@@ -294,7 +292,7 @@ def calculate_container_cost(port, city, weight, container_type):
         rw_container = "40HC - COC"
         security_container = "Security 40HC"
 
-    sheet_sea = get_google_sheet("RAW SEA")
+    sheet_sea = get_google_sheet(CONFIG.CONTEINERS_LIST1)
     sea_data = sheet_sea.get_all_records()
 
     sea_cost_usd = None
@@ -311,7 +309,7 @@ def calculate_container_cost(port, city, weight, container_type):
     sea_cost_rub = sea_cost_usd * usd_to_rub_rate
     logging.info(f"💰 Морской фрахт: {sea_cost_usd} USD → {sea_cost_rub} RUB")
 
-    sheet_rw = get_google_sheet("RAW RW")
+    sheet_rw = get_google_sheet(CONFIG.CONTEINERS_LIST2)
     rw_data = sheet_rw.get_all_records()
 
     rail_cost, security_cost, prr_cost = None, None, None

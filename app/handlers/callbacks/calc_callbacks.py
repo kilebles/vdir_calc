@@ -6,6 +6,7 @@ from thefuzz import process
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
+from app.core.config import CONFIG
 from app.utils.states import FreightCalculationState, FreightContainerState
 from app.utils.google_sheets import calculate_container_cost, calculate_delivery_cost, get_google_sheet, get_tariff_zhd
 from app.UI.inline import (
@@ -143,10 +144,10 @@ async def start_calculation(callback: CallbackQuery, state: FSMContext):
 async def enter_origin_city(message: Message, state: FSMContext):
     city = message.text.strip().lower()
     
-    available_cities = get_available_cities("RAW Сборка Авто", 1)  # Берем POL City
+    available_cities = get_available_cities(CONFIG.BUILD_AUTO_LIST, 1)  # Берем POL City
 
     if city in available_cities:
-        sheet = get_google_sheet("RAW Сборка Авто")
+        sheet = get_google_sheet(CONFIG.BUILD_AUTO_LIST)
         row_index = available_cities.index(city) + 1
         pod_city = sheet.cell(row_index, 2).value  # Берем POD City
 
@@ -160,7 +161,6 @@ async def enter_origin_city(message: Message, state: FSMContext):
                 f"<b>🏙 Введите конечный город доставки в РФ:</b>", parse_mode="HTML"
             )
         else:
-            logging.error(f"❌ Ошибка: Не найден POD City для {city} в таблице RAW Сборка Авто!")
             await message.answer(
                 f"❌ Ошибка: Не найден промежуточный город для {city}. Проверьте данные."
             )
@@ -172,7 +172,7 @@ async def enter_origin_city(message: Message, state: FSMContext):
                 parse_mode="HTML"
             )
             
-            sheet = get_google_sheet("RAW Сборка Авто")
+            sheet = get_google_sheet(CONFIG.BUILD_AUTO_LIST)
             row_index = available_cities.index(corrected_city) + 1
             pod_city = sheet.cell(row_index, 2).value.strip()
 
@@ -197,7 +197,7 @@ async def enter_destination_city(message: Message, state: FSMContext):
     data = await state.get_data()
     pod_city = data.get("intermediate_city")
 
-    available_cities = get_available_cities("RAW Сборка по РФ", 2)
+    available_cities = get_available_cities(CONFIG.BUILD_RUSSIA_LIST, 2)
 
     if city in available_cities:
         await state.update_data(destination_city=city.capitalize())
@@ -322,7 +322,7 @@ async def start_calculation_zhd(callback: CallbackQuery, state: FSMContext):
 @router.message(FreightCalculationState.entering_origin_city_zhd)
 async def enter_origin_city_zhd(message: Message, state: FSMContext):
     city = message.text.strip().lower()
-    available_cities = get_available_cities("RAW Сборка ЖД", 1)
+    available_cities = get_available_cities(CONFIG.BUILD_RAILWAY_LIST, 1)
 
     if city in available_cities:
         await state.update_data(origin_city=city.capitalize())
@@ -347,7 +347,7 @@ async def enter_origin_city_zhd(message: Message, state: FSMContext):
 @router.message(FreightCalculationState.entering_destination_city_zhd)
 async def enter_destination_city_zhd(message: Message, state: FSMContext):
     city = message.text.strip().lower()
-    available_cities = get_available_cities("RAW Сборка ЖД", 2)
+    available_cities = get_available_cities(CONFIG.BUILD_RAILWAY_LIST, 2)
 
     if city in available_cities:
         await state.update_data(destination_city=city.capitalize())
@@ -470,7 +470,7 @@ async def start_calculation_containers(callback: CallbackQuery, state: FSMContex
 @router.message(FreightContainerState.entering_port)
 async def enter_port_container(message: Message, state: FSMContext):
     user_input = message.text.strip().lower()
-    available_ports = get_available_ports("RAW SEA", 3)
+    available_ports = get_available_ports(CONFIG.CONTEINERS_LIST1, 3)
 
     corrected_port = None
     for port in available_ports:
@@ -495,7 +495,7 @@ async def enter_port_container(message: Message, state: FSMContext):
 @router.message(FreightContainerState.entering_city)
 async def enter_city_container(message: Message, state: FSMContext):
     city = message.text.strip().lower()
-    available_cities = get_available_cities_rw("RAW RW", 4)
+    available_cities = get_available_cities_rw(CONFIG.CONTEINERS_LIST2, 4)
 
     if city in available_cities:
         await state.update_data(destination_city=city.capitalize())
@@ -507,7 +507,7 @@ async def enter_city_container(message: Message, state: FSMContext):
         if corrected_city:
             await state.update_data(destination_city=corrected_city.capitalize())
             await state.set_state(FreightContainerState.entering_weight)
-            await message.answer("<b>⚖ Введите вес груза (кг):</b>", parse_mode="HTML")
+            await message.answer("<b>⚖ Введите вес груза (тонны):</b>", parse_mode="HTML")
         else:
             await message.answer(f"❌ Город не найден в базе. Проверьте правильность и попробуйте снова.\n\n"
                                  f"📜 Список городов: {', '.join(available_cities[:10])}...")
