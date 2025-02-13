@@ -26,6 +26,6 @@
 - Работа с фото/видео-контентом.
 
 ## Требования
-Pyhton 3.10+
-Зависимости (requirements.txt)
-Сервисный аккаунт Google (service_account.json)
+- Pyhton 3.10+
+- Зависимости (requirements.txt)
+- Сервисный аккаунт Google (service_account.json)
