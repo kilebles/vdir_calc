@@ -45,8 +45,6 @@ class CalcBuildCallback(CallbackData, prefix="build"):
     pass
 
 
-class CalcConteinersCallback(CallbackData, prefix="conteiners"):
-    pass
 
 
 class CalcAutoCallback(CallbackData, prefix="calc_auto"):
@@ -70,4 +68,12 @@ class CalcConfirmCallback(CallbackData, prefix="calc_confirm"):
 
 
 class CalcConfirmZhdCallback(CallbackData, prefix="calc_confirm_zhd"):
+    pass
+
+
+class CalcContainersCallback(CallbackData, prefix = "calc_containers"):
+    pass
+
+
+class CalcConfirmContainersCallback(CallbackData, prefix = "confirm_containers"):
     pass

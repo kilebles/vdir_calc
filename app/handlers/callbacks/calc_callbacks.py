@@ -6,24 +6,26 @@ from thefuzz import process
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
-from app.utils.states import FreightCalculationState
-from app.utils.google_sheets import calculate_delivery_cost, get_google_sheet, get_tariff_zhd
+from app.utils.states import FreightCalculationState, FreightContainerState
+from app.utils.google_sheets import calculate_container_cost, calculate_delivery_cost, get_google_sheet, get_tariff_zhd
 from app.UI.inline import (
     get_calculator_keyboard,
     get_build_keyboard,
     get_confirm_keyboard,
+    get_confirm_keyboard_for_containers,
     get_confirm_keyboard_for_zhd,
 )
 from app.handlers.callbacks.callback_data import (
     CalcConfirmZhdCallback,
+    CalcContainersCallback,
     ContinueStartCallback,
     CalcBuildCallback,
     CalcBackToMenu,
     CalcAutoCallback,
     CalcAviaCallback,
     CalcZdCallback,
-    CalcConteinersCallback,
     CalcConfirmCallback,
+    CalcConfirmContainersCallback
 )
 
 logging.basicConfig(
@@ -50,6 +52,28 @@ def get_available_cities(sheet_name, column_index):
 def find_closest_city(city, available_cities):
     match, score = process.extractOne(city, available_cities)
     logging.info(f"🔍 Ближайшее совпадение для '{city}': {match} (Точность: {score}%)")
+    return match if score > 75 else None
+
+
+def get_available_ports(sheet_name, column_index=3):
+    sheet = get_google_sheet(sheet_name)
+    ports = sheet.col_values(column_index)
+    clean_ports = [port.strip() for port in ports if port.strip()]
+    logging.info(f"📜 Доступные порты в {sheet_name}: {clean_ports}")
+    return clean_ports
+
+
+def get_available_cities_rw(sheet_name, column_index=4):
+    sheet = get_google_sheet(sheet_name)
+    cities = sheet.col_values(column_index)
+    clean_cities = [city.strip() for city in cities if city.strip()]
+    logging.info(f"📜 Доступные города в {sheet_name}: {clean_cities}")
+    return clean_cities
+
+
+def find_closest_location(location, available_locations):
+    match, score = process.extractOne(location, available_locations)
+    logging.info(f"🔍 Ближайшее совпадение для '{location}': {match} (Точность: {score}%)")
     return match if score > 75 else None
 
 
@@ -412,12 +436,12 @@ async def confirm_calculation_zhd(callback: CallbackQuery, state: FSMContext):
             f"🏙 <b>Город доставки:</b> <code>{result['destination_city']}</code>\n"
             f"⚖ <b>Вес груза:</b> <code>{result['weight']} кг</code>\n"
             f"📦 <b>Объем груза:</b> <code>{result['volume']} м³</code>\n\n"
-            f"💰 <b>Тариф по объёму:</b> <code>{result['tariff']} USD</code>\n"
-            f"📜 <b>Экспортная декларация:</b> <code>{result['export_declaration']} USD</code>\n"
+            f"💰 <b>Тариф по объёму:</b> <code>{result['tariff_rub']} руб.</code>\n"
+            f"📜 <b>Экспортная декларация:</b> <code>{result['export_declaration_rub']} руб.</code>\n"
             f"🕒 <b>Транзитное время:</b> <code>{result['transit_time']}</code>\n"
             f"ℹ️ <b>Доп. условия:</b> <code>{result['additional_conditions']}</code>\n"
             f"📦 <b>Расходы на СВХ:</b> <code>{result['warehouse_costs']}</code>\n\n"
-            f"💰 <u><b>Общая стоимость доставки:</b> <code>{result['total_cost']:.2f} USD</code></u>\n"
+            f"💰 <u><b>Общая стоимость доставки:</b> <code>{result['total_cost_rub']:.2f} руб.</code></u>\n"
         )
 
         await callback.message.edit_text(response, parse_mode="HTML")
@@ -429,6 +453,141 @@ async def confirm_calculation_zhd(callback: CallbackQuery, state: FSMContext):
     
     
 # endregion
+
+
+# region #&Conteiners
+
+
+# ^ Старт ввода данных для контейнеров
+@router.callback_query(CalcContainersCallback.filter())
+async def start_calculation_containers(callback: CallbackQuery, state: FSMContext):
+    await state.set_state(FreightContainerState.entering_port)
+    await callback.message.answer("<b>🚢 Введите порт отправления:</b>", parse_mode="HTML")
+    await callback.answer()
+
+
+# ^ Ввод порта отправления для контейнеров
+@router.message(FreightContainerState.entering_port)
+async def enter_port_container(message: Message, state: FSMContext):
+    user_input = message.text.strip().lower()
+    available_ports = get_available_ports("RAW SEA", 3)
+
+    corrected_port = None
+    for port in available_ports:
+        if user_input in port.lower():
+            corrected_port = port
+            break
+
+    if corrected_port:
+        await state.update_data(port=corrected_port)
+        logging.info(f"🚢 Введен порт отправления (исправлен): {corrected_port}")
+        await state.set_state(FreightContainerState.entering_city)
+        await message.answer(f"🔍 Порт исправлен автоматически: <b>{corrected_port}</b>\n\n"
+                             "<b>🏙 Введите город доставки в РФ:</b>", parse_mode="HTML")
+    else:
+        await message.answer(f"❌ Порт не найден. Проверьте правильность и попробуйте снова.\n\n"
+                             f"📜 Список портов: {', '.join(available_ports[:10])}...")
+
+
+
+
+# ^ Ввод города доставки для контейнеров
+@router.message(FreightContainerState.entering_city)
+async def enter_city_container(message: Message, state: FSMContext):
+    city = message.text.strip().lower()
+    available_cities = get_available_cities_rw("RAW RW", 4)
+
+    if city in available_cities:
+        await state.update_data(destination_city=city.capitalize())
+        logging.info(f"🏙 Введен город доставки: {city.capitalize()}")
+        await state.set_state(FreightContainerState.entering_weight)
+        await message.answer("<b>⚖ Введите вес груза (кг):</b>", parse_mode="HTML")
+    else:
+        corrected_city = find_closest_location(city, available_cities)
+        if corrected_city:
+            await state.update_data(destination_city=corrected_city.capitalize())
+            await state.set_state(FreightContainerState.entering_weight)
+            await message.answer("<b>⚖ Введите вес груза (кг):</b>", parse_mode="HTML")
+        else:
+            await message.answer(f"❌ Город не найден в базе. Проверьте правильность и попробуйте снова.\n\n"
+                                 f"📜 Список городов: {', '.join(available_cities[:10])}...")
+
+
+# ^ Ввод веса
+@router.message(FreightContainerState.entering_weight)
+async def enter_weight(message: Message, state: FSMContext):
+    try:
+        weight = float(message.text)
+        await state.update_data(weight=weight)
+        await state.set_state(FreightContainerState.entering_container_type)
+        await message.answer("<b>📦 Введите тип контейнера (20DC, 40HC и т.д.):</b>", parse_mode="HTML")
+    except ValueError:
+        await message.answer("❌ Введите корректное число!")
+
+
+# ^ Ввод типа контейнера
+@router.message(FreightContainerState.entering_container_type)
+async def enter_container_type(message: Message, state: FSMContext):
+    await state.update_data(container_type=message.text.strip().upper())
+    await state.set_state(FreightContainerState.confirming_data)
+
+    data = await state.get_data()
+    response = (
+        f"<b>Вы ввели:</b>\n\n"
+        f"🚢 <b>Порт отправления:</b> <code>{data['port']}</code>\n"
+        f"🏙 <b>Город доставки:</b> <code>{data['destination_city']}</code>\n"
+        f"⚖ <b>Вес:</b> <code>{data['weight']} тонн</code>\n"
+        f"📦 <b>Тип контейнера:</b> <code>{data['container_type']}</code>\n"
+    )
+
+    keyboard = get_confirm_keyboard_for_containers()
+    await message.answer(response, reply_markup=keyboard, parse_mode="HTML")
+
+
+# ^ Подтверждение и вывод данных
+@router.callback_query(CalcConfirmContainersCallback.filter())
+async def confirm_calculation_containers(callback: CallbackQuery, state: FSMContext):
+    data = await state.get_data()
+
+    required_keys = ["port", "destination_city", "weight", "container_type"]
+    missing_keys = [key for key in required_keys if key not in data]
+
+    if missing_keys:
+        await callback.message.answer(f"❌ Ошибка: отсутствуют данные {', '.join(missing_keys)}. Повторите ввод.")
+        await state.clear()
+        return
+
+    try:
+        result = calculate_container_cost(
+            port=data["port"],
+            city=data["destination_city"],
+            weight=data["weight"],
+            container_type=data["container_type"]
+        )
+
+        response = (
+            f"✅ <b>Расчет стоимости контейнерной доставки:</b>\n\n"
+            f"🚢 <b>Порт отправления:</b> <code>{result['port']}</code>\n"
+            f"🏙 <b>Город доставки:</b> <code>{result['city']}</code>\n"
+            f"⚖ <b>Вес груза:</b> <code>{result['weight']} тонн</code>\n"
+            f"📦 <b>Тип контейнера:</b> <code>{result['container_type']}</code>\n\n"
+            f"💰 <b>Морской фрахт:</b> <code>{result['sea_freight']:.2f} руб.</code>\n"
+            f"🚂 <b>ЖД фрахт:</b> <code>{result['rail_freight']:.2f} руб.</code>\n"
+            f"🔒 <b>Охрана:</b> <code>{result['security']:.2f} руб.</code>\n"
+            f"🏗 <b>Погрузка-разгрузка:</b> <code>{result['prr']:.2f} руб.</code>\n\n"
+            f"💰 <u><b>Итоговая стоимость:</b> <code>{result['total_cost']:.2f} руб.</code></u>\n"
+        )
+
+        await callback.message.edit_text(response, parse_mode="HTML")
+        await state.clear()
+
+    except Exception as e:
+        await callback.message.answer(f"❌ Ошибка при расчете: {e}")
+        await state.clear()
+
+    
+# endregion
+
 
 @router.callback_query(CalcAviaCallback.filter())
 async def start_calculating_avia(callback: CallbackQuery):

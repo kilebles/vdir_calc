@@ -85,7 +85,7 @@ async def schedule_posts(bot: Bot, scheduler: AsyncIOScheduler):
 async def background_task(bot: Bot, scheduler: AsyncIOScheduler):
     while True:
         await schedule_posts(bot, scheduler)
-        await asyncio.sleep(120)
+        await asyncio.sleep(20)
 
 
 def start_scheduler(bot: Bot):

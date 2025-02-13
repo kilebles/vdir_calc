@@ -12,13 +12,14 @@ from app.handlers.callbacks.callback_data import (
     ToggleActiveCallback,
     ContinueStartCallback,
     CalcBuildCallback,
-    CalcConteinersCallback,
     CalcAutoCallback,
     CalcAviaCallback,
     CalcZdCallback,
     CalcBackToMenu,
     CalcConfirmCallback,
-    CalcConfirmZhdCallback
+    CalcConfirmZhdCallback,
+    CalcConfirmContainersCallback,
+    CalcContainersCallback
 )
 
 
@@ -127,7 +128,7 @@ def get_calculator_keyboard() -> InlineKeyboardMarkup:
                 text="🧺 Сборка", callback_data=CalcBuildCallback().pack()
             ),
             InlineKeyboardButton(
-                text="📦 Контейнеры", callback_data=CalcConteinersCallback().pack()
+                text="📦 Контейнеры", callback_data=CalcContainersCallback().pack()
             ),
         ]
     ]
@@ -178,6 +179,19 @@ def get_confirm_keyboard_for_zhd() -> InlineKeyboardMarkup:
                 InlineKeyboardButton(
                     text="🆗 Рассчитать", callback_data=CalcConfirmZhdCallback().pack()
                 )
+            ]
+        ]
+    )
+
+
+# ^ Клавиатура подтверждения расчета контейнеров
+def get_confirm_keyboard_for_containers() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        inline_keyboard=[
+            [       
+                InlineKeyboardButton(
+                    text="🆗 Рассчитать", callback_data=CalcConfirmContainersCallback().pack()
+            )
             ]
         ]
     )
