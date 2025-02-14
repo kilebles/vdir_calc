@@ -649,7 +649,7 @@ async def enter_weight(message: Message, state: FSMContext):
         weight = float(message.text)
         await state.update_data(weight=weight)
         await state.set_state(FreightContainerState.entering_container_type)
-        await message.answer("<b>📦 Введите тип контейнера (20DC, 40HC и т.д.):</b>", parse_mode="HTML")
+        await message.answer("<b>📦 Введите тип контейнера (20DC, 40HC):</b>", parse_mode="HTML")
     except ValueError:
         await message.answer("❌ Введите корректное число!")
 
