@@ -551,15 +551,27 @@ async def confirm_calculation_zhd(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(CalcContainersCallback.filter())
 async def start_calculation_containers(callback: CallbackQuery, state: FSMContext):
     await state.set_state(FreightContainerState.entering_port)
-    await callback.message.answer("<b>🚢 Введите порт отправления:</b>", parse_mode="HTML")
+    searching_message = await callback.message.answer("🔎")
+    available_ports = get_available_ports(CONFIG.CONTEINERS_LIST1, 3)
+    ports_text = ', '.join([p.capitalize() for p in available_ports])
+    text_message = (
+        "<b>🚢 Введите порт отправления:</b>\n\n"
+        f"<i>Доступные порты:</i>\n<blockquote expandable>{ports_text}</blockquote>"
+    )
+    await searching_message.delete()
+    await callback.message.answer(text=text_message, parse_mode="HTML")
     await callback.answer()
 
 
 # ^ Ввод порта отправления для контейнеров
 @router.message(FreightContainerState.entering_port)
 async def enter_port_container(message: Message, state: FSMContext):
+    loading_message = await message.answer("🔎")
     user_input = message.text.strip().lower()
     available_ports = get_available_ports(CONFIG.CONTEINERS_LIST1, 3)
+
+    def format_ports_list(ports, limit=150):
+        return ', '.join([p.capitalize() for p in ports[:limit]])
 
     corrected_port = None
     for port in available_ports:
@@ -568,38 +580,66 @@ async def enter_port_container(message: Message, state: FSMContext):
             break
 
     if corrected_port:
-        await state.update_data(port=corrected_port)
-        logging.info(f"🚢 Введен порт отправления (исправлен): {corrected_port}")
+        await state.update_data(port=corrected_port.capitalize())
+        logging.info(f"🚢 Введен порт отправления (исправлен): {corrected_port.capitalize()}")
+
+        available_cities = get_available_cities_rw(CONFIG.CONTEINERS_LIST2, 4)
+        available_cities_list = format_ports_list(available_cities)
+
         await state.set_state(FreightContainerState.entering_city)
-        await message.answer(f"🔍 Порт исправлен автоматически: <b>{corrected_port}</b>\n\n"
-                             "<b>🏙 Введите город доставки в РФ:</b>", parse_mode="HTML")
+        await loading_message.edit_text(
+            f"🔍 Порт исправлен автоматически: <b>{corrected_port.capitalize()}</b>\n\n"
+            f"<b>🏙 Введите город доставки в РФ:</b>\n\n"
+            f"<i>Доступные города (показано {len(available_cities[:150])} из {len(available_cities)}):</i>\n"
+            f"<blockquote expandable>{available_cities_list}</blockquote>",
+            parse_mode="HTML"
+        )
     else:
-        await message.answer(f"❌ Порт не найден. Проверьте правильность и попробуйте снова.\n\n"
-                             f"📜 Список портов: {', '.join(available_ports[:10])}...")
-
-
+        available_ports_list = format_ports_list(available_ports)
+        await loading_message.edit_text(
+            f"❌ Порт не найден. Проверьте правильность и попробуйте снова.\n\n"
+            f"📜 <i>Список доступных портов (показано {len(available_ports[:150])} из {len(available_ports)}):</i>\n"
+            f"<blockquote expandable>{available_ports_list}</blockquote>",
+            parse_mode="HTML"
+        )
 
 
 # ^ Ввод города доставки для контейнеров
 @router.message(FreightContainerState.entering_city)
 async def enter_city_container(message: Message, state: FSMContext):
+    loading_message = await message.answer("🔎")
     city = message.text.strip().lower()
     available_cities = get_available_cities_rw(CONFIG.CONTEINERS_LIST2, 4)
+
+    def format_cities_list(cities, limit=150):
+        return ', '.join([c.capitalize() for c in cities[:limit]])
 
     if city in available_cities:
         await state.update_data(destination_city=city.capitalize())
         logging.info(f"🏙 Введен город доставки: {city.capitalize()}")
+
         await state.set_state(FreightContainerState.entering_weight)
-        await message.answer("<b>⚖ Введите вес груза (кг):</b>", parse_mode="HTML")
+        await loading_message.edit_text("<b>⚖ Введите вес груза (тонны):</b>", parse_mode="HTML")
     else:
         corrected_city = find_closest_location(city, available_cities)
         if corrected_city:
             await state.update_data(destination_city=corrected_city.capitalize())
+            logging.info(f"🏙 Введен город доставки (исправлен): {corrected_city.capitalize()}")
+
             await state.set_state(FreightContainerState.entering_weight)
-            await message.answer("<b>⚖ Введите вес груза (тонны):</b>", parse_mode="HTML")
+            await loading_message.edit_text(
+                f"🔍 Вы имели в виду <b>{corrected_city.capitalize()}</b>? (Исправлено автоматически)\n\n"
+                f"<b>⚖ Введите вес груза (тонн):</b>",
+                parse_mode="HTML"
+            )
         else:
-            await message.answer(f"❌ Город не найден в базе. Проверьте правильность и попробуйте снова.\n\n"
-                                 f"📜 Список городов: {', '.join(available_cities[:10])}...")
+            available_cities_list = format_cities_list(available_cities)
+            await loading_message.edit_text(
+                f"❌ Город не найден в базе. Проверьте правильность и попробуйте снова.\n\n"
+                f"📜 <i>Список доступных городов (показано {len(available_cities[:150])} из {len(available_cities)}):</i>\n"
+                f"<blockquote expandable>{available_cities_list}</blockquote>",
+                parse_mode="HTML"
+            )
 
 
 # ^ Ввод веса
@@ -646,6 +686,8 @@ async def confirm_calculation_containers(callback: CallbackQuery, state: FSMCont
         await state.clear()
         return
 
+    loading_message = await callback.message.edit_text("🧮")  # Значок калькулятора
+
     try:
         result = calculate_container_cost(
             port=data["port"],
@@ -667,11 +709,11 @@ async def confirm_calculation_containers(callback: CallbackQuery, state: FSMCont
             f"💰 <u><b>Итоговая стоимость:</b> <code>{result['total_cost']:.2f} руб.</code></u>\n"
         )
 
-        await callback.message.edit_text(response, parse_mode="HTML")
+        await loading_message.edit_text(response, parse_mode="HTML")
         await state.clear()
 
     except Exception as e:
-        await callback.message.answer(f"❌ Ошибка при расчете: {e}")
+        await loading_message.edit_text(f"❌ Ошибка при расчете: {e}")
         await state.clear()
 
     
