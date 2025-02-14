@@ -3,6 +3,7 @@ import logging
 
 from aiogram import Router
 from thefuzz import process
+from functools import lru_cache
 from aiogram.fsm.context import FSMContext
 from aiogram.types import CallbackQuery, Message
 
@@ -41,41 +42,51 @@ router = Router()
 # region #& Исправлеие городов
 
 
-def get_available_cities(sheet_name, column_index):
+@lru_cache(maxsize=10)
+def get_available_data(sheet_name, column_index, skip_header=True):
     sheet = get_google_sheet(sheet_name)
-    cities = sheet.col_values(column_index)
-    clean_cities = [city.strip().lower() for city in cities if city.strip()]
+    data = sheet.col_values(column_index)
+    if skip_header:
+        data = data[1:]
+    clean_data = [item.strip().lower() for item in data if item.strip()]
+    logging.info(f"📜 Данные из {sheet_name}, столбец {column_index}: {clean_data}")
+    return clean_data
+
+
+def display_available_options(options):
+    return '", "'.join(options)
+
+
+def find_closest_match(query, available_options, threshold=75):
+    if not available_options:
+        logging.warning(f"⚠️ Нет доступных значений для поиска '{query}'")
+        return None
+
+    match, score = process.extractOne(query.lower(), available_options)
+    logging.info(f"🔍 Ближайшее совпадение для '{query}': {match} (Точность: {score}%)")
     
-    logging.info(f"📜 Доступные города в {sheet_name}: {clean_cities}")
-    return clean_cities
+    return match if score > threshold else None
 
 
-def find_closest_city(city, available_cities):
-    match, score = process.extractOne(city, available_cities)
-    logging.info(f"🔍 Ближайшее совпадение для '{city}': {match} (Точность: {score}%)")
-    return match if score > 75 else None
+def get_available_cities(sheet_name, column_index=1):
+    cities = get_available_data(sheet_name, column_index)
+    return cities
 
 
 def get_available_ports(sheet_name, column_index=3):
-    sheet = get_google_sheet(sheet_name)
-    ports = sheet.col_values(column_index)
-    clean_ports = [port.strip() for port in ports if port.strip()]
-    logging.info(f"📜 Доступные порты в {sheet_name}: {clean_ports}")
-    return clean_ports
+    return get_available_data(sheet_name, column_index)
 
 
 def get_available_cities_rw(sheet_name, column_index=4):
-    sheet = get_google_sheet(sheet_name)
-    cities = sheet.col_values(column_index)
-    clean_cities = [city.strip() for city in cities if city.strip()]
-    logging.info(f"📜 Доступные города в {sheet_name}: {clean_cities}")
-    return clean_cities
+    return get_available_data(sheet_name, column_index)
+
+
+def find_closest_city(city, available_cities):
+    return find_closest_match(city, available_cities)
 
 
 def find_closest_location(location, available_locations):
-    match, score = process.extractOne(location, available_locations)
-    logging.info(f"🔍 Ближайшее совпадение для '{location}': {match} (Точность: {score}%)")
-    return match if score > 75 else None
+    return find_closest_match(location, available_locations)
 
 
 # endregion
@@ -133,45 +144,55 @@ async def Back_to_calc_menu_handler(callback: CallbackQuery):
 @router.callback_query(CalcAutoCallback.filter())
 async def start_calculation(callback: CallbackQuery, state: FSMContext):
     await state.set_state(FreightCalculationState.entering_origin_city)
-    await callback.message.answer(
-        text="<b>🚚 Введите город отправления:</b>", parse_mode="HTML"
+    searching_message = await callback.message.answer("🔎")
+    available_cities = get_available_cities(CONFIG.BUILD_AUTO_LIST)
+    cities_text = '", "'.join(available_cities)
+    text_message = (
+        "<b>🚚 Введите город отправления:</b>\n\n"
+        f"<i>Доступные города:</i>\n<blockquote expandable>{cities_text.capitalize()}</blockquote>"
     )
+    await searching_message.delete()
+    await callback.message.answer(text=text_message, parse_mode="HTML")
     await callback.answer()
 
 
 # ^ Ввод города отправителя
 @router.message(FreightCalculationState.entering_origin_city)
 async def enter_origin_city(message: Message, state: FSMContext):
+    loading_message = await message.answer("🔎")  # Отправляем сообщение с лупой
     city = message.text.strip().lower()
-    
-    available_cities = get_available_cities(CONFIG.BUILD_AUTO_LIST, 1)  # Берем POL City
+    available_cities = get_available_cities(CONFIG.BUILD_AUTO_LIST, 1)
+
+    def format_cities_list(cities, limit=150):
+        return ', '.join([c.capitalize() for c in cities[:limit]])
 
     if city in available_cities:
         sheet = get_google_sheet(CONFIG.BUILD_AUTO_LIST)
         row_index = available_cities.index(city) + 1
-        pod_city = sheet.cell(row_index, 2).value  # Берем POD City
+        pod_city = sheet.cell(row_index, 2).value
 
         if pod_city and pod_city.strip():
             pod_city = pod_city.strip()
             await state.update_data(origin_city=city.capitalize(), intermediate_city=pod_city)
             logging.info(f"🚚 Введен город отправления: {city.capitalize()}, промежуточный город: {pod_city}")
 
+            available_cities_destination = get_available_cities(CONFIG.BUILD_RUSSIA_LIST, 2)
+            available_cities_list = format_cities_list(available_cities_destination)
+
             await state.set_state(FreightCalculationState.entering_destination_city)
-            await message.answer(
-                f"<b>🏙 Введите конечный город доставки в РФ:</b>", parse_mode="HTML"
+            await loading_message.edit_text(
+                f"<b>🏙 Введите конечный город доставки в РФ:</b>\n\n"
+                f"<i>Доступные города (показано {len(available_cities_destination[:150])} из {len(available_cities_destination)}):</i>\n"
+                f"<blockquote expandable>{available_cities_list}</blockquote>",
+                parse_mode="HTML"
             )
         else:
-            await message.answer(
+            await loading_message.edit_text(
                 f"❌ Ошибка: Не найден промежуточный город для {city}. Проверьте данные."
             )
     else:
         corrected_city = find_closest_city(city, available_cities)
         if corrected_city:
-            await message.answer(
-                f"🔍 Вы имели в виду <b>{corrected_city.capitalize()}</b>? (Исправлено автоматически)",
-                parse_mode="HTML"
-            )
-            
             sheet = get_google_sheet(CONFIG.BUILD_AUTO_LIST)
             row_index = available_cities.index(corrected_city) + 1
             pod_city = sheet.cell(row_index, 2).value.strip()
@@ -179,18 +200,27 @@ async def enter_origin_city(message: Message, state: FSMContext):
             await state.update_data(origin_city=corrected_city.capitalize(), intermediate_city=pod_city)
             logging.info(f"🚚 Введен город отправления: {corrected_city.capitalize()}, промежуточный город: {pod_city}")
 
+            available_cities_destination = get_available_cities(CONFIG.BUILD_RUSSIA_LIST, 2)
+            available_cities_list = format_cities_list(available_cities_destination)
+
             await state.set_state(FreightCalculationState.entering_destination_city)
-            await message.answer(
-                f"<b>🏙 Введите конечный город доставки в РФ:</b>", parse_mode="HTML"
+            await loading_message.edit_text(
+                f"🔍 Вы имели в виду <b>{corrected_city.capitalize()}</b>? (Исправлено автоматически)\n\n"
+                f"<b>🏙 Введите конечный город доставки в РФ:</b>\n\n"
+                f"<i>Доступные города (показано {len(available_cities_destination[:150])} из {len(available_cities_destination)}):</i>\n"
+                f"<blockquote expandable>{available_cities_list}</blockquote>",
+                parse_mode="HTML"
             )
         else:
-            await message.answer(
+            available_cities_list = format_cities_list(available_cities)
+            await loading_message.edit_text(
                 f"❌ Город не найден в базе. Проверьте правильность написания и попробуйте снова.\n\n"
-                f"📜 Список доступных городов: {', '.join(available_cities[:10])}..."
+                f"📜 <i>Список доступных городов (показано {len(available_cities[:150])} из {len(available_cities)}):</i>\n"
+                f"<blockquote expandable>{available_cities_list}</blockquote>",
+                parse_mode="HTML"
             )
-            
 
-# ^ Ввод города доставки
+
 @router.message(FreightCalculationState.entering_destination_city)
 async def enter_destination_city(message: Message, state: FSMContext):
     city = message.text.strip().lower()
@@ -198,6 +228,9 @@ async def enter_destination_city(message: Message, state: FSMContext):
     pod_city = data.get("intermediate_city")
 
     available_cities = get_available_cities(CONFIG.BUILD_RUSSIA_LIST, 2)
+
+    def format_cities_list(cities, limit=150):
+        return ', '.join([c.capitalize() for c in cities[:limit]])
 
     if city in available_cities:
         await state.update_data(destination_city=city.capitalize())
@@ -208,14 +241,21 @@ async def enter_destination_city(message: Message, state: FSMContext):
     else:
         corrected_city = find_closest_city(city, available_cities)
         if corrected_city:
-            await message.answer(f"🔍 Вы имели в виду <b>{corrected_city.capitalize()}</b>? (Исправлено автоматически)",
-                                 parse_mode="HTML")
             await state.update_data(destination_city=corrected_city.capitalize()) 
             await state.set_state(FreightCalculationState.entering_weight) 
-            await message.answer("<b>⚖ Введите вес груза (кг):</b>", parse_mode="HTML") 
+            await message.answer(
+                f"🔍 Вы имели в виду <b>{corrected_city.capitalize()}</b>? (Исправлено автоматически)\n\n"
+                f"<b>⚖ Введите вес груза (кг):</b>",
+                parse_mode="HTML"
+            )
         else:
-            await message.answer(f"❌ Город не найден в базе. Проверьте правильность написания и попробуйте снова.\n\n"
-                                 f"📜 Список доступных городов: {', '.join(available_cities[:10])}...")
+            available_cities_list = format_cities_list(available_cities)
+            await message.answer(
+                f"❌ Город не найден в базе. Проверьте правильность написания и попробуйте снова.\n\n"
+                f"📜 <i>Список доступных городов (показано {len(available_cities[:150])} из {len(available_cities)}):</i>\n"
+                f"<blockquote expandable>{available_cities_list}</blockquote>",
+                parse_mode="HTML"
+            )
 
 
 # ^ Ввод веса груза
@@ -275,6 +315,8 @@ async def confirm_calculation(callback: CallbackQuery, state: FSMContext):
         await state.clear()
         return
 
+    loading_message = await callback.message.edit_text("🧮")  # Значок калькулятора во время расчета
+
     try:
         result = calculate_delivery_cost(
             origin_city=data["origin_city"],
@@ -294,11 +336,11 @@ async def confirm_calculation(callback: CallbackQuery, state: FSMContext):
             f"💰 <u><b>Общая стоимость доставки:</b> <code>{result['total_cost']:.2f} руб.</code></u>\n"
         )
 
-        await callback.message.edit_text(response, parse_mode="HTML")
+        await loading_message.edit_text(response, parse_mode="HTML")
         await state.clear()
 
     except Exception as e:
-        await callback.message.edit_text(f"❌ Ошибка при расчете: {e}")
+        await loading_message.edit_text(f"❌ Ошибка при расчете: {e}")
         await state.clear()
 
 
