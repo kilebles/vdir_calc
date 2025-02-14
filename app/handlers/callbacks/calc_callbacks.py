@@ -159,7 +159,7 @@ async def start_calculation(callback: CallbackQuery, state: FSMContext):
 # ^ Ввод города отправителя
 @router.message(FreightCalculationState.entering_origin_city)
 async def enter_origin_city(message: Message, state: FSMContext):
-    loading_message = await message.answer("🔎")  # Отправляем сообщение с лупой
+    loading_message = await message.answer("🔎")
     city = message.text.strip().lower()
     available_cities = get_available_cities(CONFIG.BUILD_AUTO_LIST, 1)
 
@@ -315,7 +315,7 @@ async def confirm_calculation(callback: CallbackQuery, state: FSMContext):
         await state.clear()
         return
 
-    loading_message = await callback.message.edit_text("🧮")  # Значок калькулятора во время расчета
+    loading_message = await callback.message.edit_text("🧮")
 
     try:
         result = calculate_delivery_cost(
@@ -354,60 +354,105 @@ async def confirm_calculation(callback: CallbackQuery, state: FSMContext):
 @router.callback_query(CalcZdCallback.filter())
 async def start_calculation_zhd(callback: CallbackQuery, state: FSMContext):
     await state.set_state(FreightCalculationState.entering_origin_city_zhd)
-    await callback.message.answer(
-        text="<b>🚂 Введите город отправления (ЖД):</b>", parse_mode="HTML"
+    searching_message = await callback.message.answer("🔎")
+    available_cities = get_available_cities(CONFIG.BUILD_RAILWAY_LIST, 1)
+    cities_text = ', '.join([c.capitalize() for c in available_cities])
+    text_message = (
+        "<b>🚂 Введите город отправления (ЖД):</b>\n\n"
+        f"<i>Доступные города:</i>\n<blockquote expandable>{cities_text}</blockquote>"
     )
+    await searching_message.delete()
+    await callback.message.answer(text=text_message, parse_mode="HTML")
     await callback.answer()
 
 
 # ^ Ввод города отправителя для ЖД
 @router.message(FreightCalculationState.entering_origin_city_zhd)
 async def enter_origin_city_zhd(message: Message, state: FSMContext):
+    loading_message = await message.answer("🔎")
     city = message.text.strip().lower()
     available_cities = get_available_cities(CONFIG.BUILD_RAILWAY_LIST, 1)
 
+    def format_cities_list(cities, limit=150):
+        return ', '.join([c.capitalize() for c in cities[:limit]])
+
     if city in available_cities:
         await state.update_data(origin_city=city.capitalize())
-        logging.info(f"🚂 Введен город отправления: {city.capitalize()}")
+        logging.info(f"🚂 Введен город отправления (ЖД): {city.capitalize()}")
+
+        available_cities_destination = get_available_cities(CONFIG.BUILD_RAILWAY_LIST, 2)
+        available_cities_list = format_cities_list(available_cities_destination)
 
         await state.set_state(FreightCalculationState.entering_destination_city_zhd)
-        await message.answer("<b>🏙 Введите конечный город доставки в РФ:</b>", parse_mode="HTML")
+        await loading_message.edit_text(
+            f"<b>🏙 Введите конечный город доставки в РФ (ЖД):</b>\n\n"
+            f"<i>Доступные города (показано {len(available_cities_destination[:150])} из {len(available_cities_destination)}):</i>\n"
+            f"<blockquote expandable>{available_cities_list}</blockquote>",
+            parse_mode="HTML"
+        )
     else:
         corrected_city = find_closest_city(city, available_cities)
         if corrected_city:
-            await message.answer(f"🔍 Вы имели в виду <b>{corrected_city.capitalize()}</b>? (Исправлено автоматически)",
-                                 parse_mode="HTML")
             await state.update_data(origin_city=corrected_city.capitalize())
+            logging.info(f"🚂 Введен город отправления (ЖД): {corrected_city.capitalize()}")
+
+            available_cities_destination = get_available_cities(CONFIG.BUILD_RAILWAY_LIST, 2)
+            available_cities_list = format_cities_list(available_cities_destination)
+
             await state.set_state(FreightCalculationState.entering_destination_city_zhd)
-            await message.answer("<b>🏙 Введите конечный город доставки в РФ:</b>", parse_mode="HTML")
+            await loading_message.edit_text(
+                f"🔍 Вы имели в виду <b>{corrected_city.capitalize()}</b>? (Исправлено автоматически)\n\n"
+                f"<b>🏙 Введите конечный город доставки в РФ (ЖД):</b>\n\n"
+                f"<i>Доступные города (показано {len(available_cities_destination[:150])} из {len(available_cities_destination)}):</i>\n"
+                f"<blockquote expandable>{available_cities_list}</blockquote>",
+                parse_mode="HTML"
+            )
         else:
-            await message.answer(f"❌ Город не найден в базе. Проверьте правильность написания и попробуйте снова.\n\n"
-                                 f"📜 Список доступных городов: {', '.join(available_cities[:10])}...")
+            available_cities_list = format_cities_list(available_cities)
+            await loading_message.edit_text(
+                f"❌ Город не найден в базе. Проверьте правильность написания и попробуйте снова.\n\n"
+                f"📜 <i>Список доступных городов (показано {len(available_cities[:150])} из {len(available_cities)}):</i>\n"
+                f"<blockquote expandable>{available_cities_list}</blockquote>",
+                parse_mode="HTML"
+            )
 
 
 # ^ Ввод города доставки для ЖД
 @router.message(FreightCalculationState.entering_destination_city_zhd)
 async def enter_destination_city_zhd(message: Message, state: FSMContext):
+    loading_message = await message.answer("🔎")
     city = message.text.strip().lower()
     available_cities = get_available_cities(CONFIG.BUILD_RAILWAY_LIST, 2)
 
+    def format_cities_list(cities, limit=150):
+        return ', '.join([c.capitalize() for c in cities[:limit]])
+
     if city in available_cities:
         await state.update_data(destination_city=city.capitalize())
-        logging.info(f"🏙 Введен конечный город доставки (ЖД): {city}")
+        logging.info(f"🏙 Введен конечный город доставки (ЖД): {city.capitalize()}")
 
         await state.set_state(FreightCalculationState.entering_weight_zhd)
-        await message.answer("<b>⚖ Введите вес груза (кг):</b>", parse_mode="HTML")
+        await loading_message.edit_text("<b>⚖ Введите вес груза (кг):</b>", parse_mode="HTML")
     else:
         corrected_city = find_closest_city(city, available_cities)
         if corrected_city:
-            await message.answer(f"🔍 Вы имели в виду <b>{corrected_city.capitalize()}</b>? (Исправлено автоматически)",
-                                 parse_mode="HTML")
             await state.update_data(destination_city=corrected_city.capitalize())
+            logging.info(f"🏙 Введен конечный город доставки (ЖД): {corrected_city.capitalize()}")
+
             await state.set_state(FreightCalculationState.entering_weight_zhd)
-            await message.answer("<b>⚖ Введите вес груза (кг):</b>", parse_mode="HTML")
+            await loading_message.edit_text(
+                f"🔍 Вы имели в виду <b>{corrected_city.capitalize()}</b>? (Исправлено автоматически)\n\n"
+                f"<b>⚖ Введите вес груза (кг):</b>",
+                parse_mode="HTML"
+            )
         else:
-            await message.answer(f"❌ Город не найден в базе. Проверьте правильность написания и попробуйте снова.\n\n"
-                                 f"📜 Список доступных городов: {', '.join(available_cities[:10])}...")
+            available_cities_list = format_cities_list(available_cities)
+            await loading_message.edit_text(
+                f"❌ Город не найден в базе. Проверьте правильность написания и попробуйте снова.\n\n"
+                f"📜 <i>Список доступных городов (показано {len(available_cities[:150])} из {len(available_cities)}):</i>\n"
+                f"<blockquote expandable>{available_cities_list}</blockquote>",
+                parse_mode="HTML"
+            )
 
 
 # ^ Ввод веса груза для ЖД
@@ -464,6 +509,8 @@ async def confirm_calculation_zhd(callback: CallbackQuery, state: FSMContext):
         await state.clear()
         return
 
+    loading_message = await callback.message.edit_text("🧮")
+
     try:
         result = get_tariff_zhd(
             origin_city=data["origin_city"],
@@ -486,11 +533,11 @@ async def confirm_calculation_zhd(callback: CallbackQuery, state: FSMContext):
             f"💰 <u><b>Общая стоимость доставки:</b> <code>{result['total_cost_rub']:.2f} руб.</code></u>\n"
         )
 
-        await callback.message.edit_text(response, parse_mode="HTML")
+        await loading_message.edit_text(response, parse_mode="HTML")
         await state.clear()
 
     except Exception as e:
-        await callback.message.edit_text(f"❌ Ошибка при расчете: {e}")
+        await loading_message.edit_text(f"❌ Ошибка при расчете: {e}")
         await state.clear()
     
     
